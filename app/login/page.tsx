@@ -1,175 +1,23 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-
-type StudentAccount = {
-  id: string;
-  name: string;
-  grade: string;
-  school: string;
-  login: string;
-  password: string;
-};
-
-type CurrentStudent = {
-  id: string;
-  name: string;
-  grade: string;
-  school: string;
-  login: string;
-};
-
-type Book = {
-  id: number;
-  title: string;
-  author: string;
-};
-
-type StudentProgress = {
-  currentBook?: Book | null;
-  history: Book[];
-  readingResults: Record<string, unknown>;
-  testResults: Record<string, unknown>;
-  creativeResults: Record<string, unknown>;
-  reviewResults: Record<string, unknown>;
-};
+import { createClient } from "../../utils/supabase/client";
 
 export default function LoginPage() {
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  function saveCurrentStudentProgress() {
-    const currentStudentString =
-      localStorage.getItem("smartOqyrmanStudent");
-
-    if (!currentStudentString) {
-      return;
-    }
-
-    const currentStudent = JSON.parse(currentStudentString);
-
-    const currentId =
-      localStorage.getItem("smartOqyrmanActiveStudentId") ||
-      currentStudent.id;
-
-    if (!currentId) {
-      return;
-    }
-
-    const allProgress = JSON.parse(
-      localStorage.getItem("smartOqyrmanStudentData") || "{}"
-    );
-
-    const currentBookString =
-      localStorage.getItem("smartOqyrmanCurrentBook");
-
-    allProgress[currentId] = {
-      currentBook: currentBookString
-        ? JSON.parse(currentBookString)
-        : null,
-
-      history: JSON.parse(
-        localStorage.getItem("smartOqyrmanBookHistory") || "[]"
-      ),
-
-      readingResults: JSON.parse(
-        localStorage.getItem("smartOqyrmanReadingResults") || "{}"
-      ),
-
-      testResults: JSON.parse(
-        localStorage.getItem("smartOqyrmanTestResults") || "{}"
-      ),
-
-      creativeResults: JSON.parse(
-        localStorage.getItem("smartOqyrmanCreativeResults") || "{}"
-      ),
-
-      reviewResults: JSON.parse(
-        localStorage.getItem("smartOqyrmanReviewResults") || "{}"
-      ),
-    };
-
-    localStorage.setItem(
-      "smartOqyrmanStudentData",
-      JSON.stringify(allProgress)
-    );
-  }
-
-  function clearCurrentProgress() {
-    localStorage.removeItem("smartOqyrmanCurrentBook");
-    localStorage.removeItem("smartOqyrmanBookHistory");
-    localStorage.removeItem("smartOqyrmanReadingResults");
-    localStorage.removeItem("smartOqyrmanTestResults");
-    localStorage.removeItem("smartOqyrmanTestResult");
-    localStorage.removeItem("smartOqyrmanCreativeResults");
-    localStorage.removeItem("smartOqyrmanCreativeResult");
-    localStorage.removeItem("smartOqyrmanReviewResults");
-    localStorage.removeItem("smartOqyrmanReviewResult");
-    localStorage.removeItem("smartOqyrmanReadingStatus");
-  }
-
-  function loadStudentProgress(studentId: string) {
-    clearCurrentProgress();
-
-    const allProgress: Record<string, StudentProgress> =
-      JSON.parse(
-        localStorage.getItem("smartOqyrmanStudentData") || "{}"
-      );
-
-    const progress = allProgress[studentId];
-
-    if (!progress) {
-      return;
-    }
-
-    if (progress.currentBook) {
-      localStorage.setItem(
-        "smartOqyrmanCurrentBook",
-        JSON.stringify(progress.currentBook)
-      );
-    } else if (
-      progress.history &&
-      progress.history.length > 0
-    ) {
-      const lastBook =
-        progress.history[progress.history.length - 1];
-
-      localStorage.setItem(
-        "smartOqyrmanCurrentBook",
-        JSON.stringify(lastBook)
-      );
-    }
-
-    localStorage.setItem(
-      "smartOqyrmanBookHistory",
-      JSON.stringify(progress.history || [])
-    );
-
-    localStorage.setItem(
-      "smartOqyrmanReadingResults",
-      JSON.stringify(progress.readingResults || {})
-    );
-
-    localStorage.setItem(
-      "smartOqyrmanTestResults",
-      JSON.stringify(progress.testResults || {})
-    );
-
-    localStorage.setItem(
-      "smartOqyrmanCreativeResults",
-      JSON.stringify(progress.creativeResults || {})
-    );
-
-    localStorage.setItem(
-      "smartOqyrmanReviewResults",
-      JSON.stringify(progress.reviewResults || {})
-    );
-  }
-
-  function handleLogin(event: FormEvent<HTMLFormElement>) {
+  async function handleLogin(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
-    const cleanLogin = login.trim().toLowerCase();
+    const cleanLogin = login
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "");
+
     const cleanPassword = password.trim();
 
     if (!cleanLogin || !cleanPassword) {
@@ -177,33 +25,59 @@ export default function LoginPage() {
       return;
     }
 
-    const students: StudentAccount[] = JSON.parse(
-      localStorage.getItem("smartOqyrmanStudents") || "[]"
-    );
+    setLoading(true);
 
-    const foundStudent = students.find(
-      (student) =>
-        student.login.toLowerCase() === cleanLogin &&
-        student.password === cleanPassword
-    );
+    const supabase = createClient();
 
-    if (!foundStudent) {
-      alert("Логин немесе құпиясөз дұрыс емес.");
+    const internalEmail =
+      `${cleanLogin}@smart-oqyrman.local`;
+
+    const {
+      data,
+      error,
+    } = await supabase.auth.signInWithPassword({
+      email: internalEmail,
+      password: cleanPassword,
+    });
+
+    if (error || !data.user) {
+      setLoading(false);
+
+      alert(
+        "Логин немесе құпиясөз қате. Қайта тексеріңіз."
+      );
+
       return;
     }
 
-    // Алдыңғы оқушының нәтижесін сақтаймыз
-    saveCurrentStudentProgress();
+    const { data: profile, error: profileError } =
+      await supabase
+        .from("profiles")
+        .select(
+          "id, login, full_name, grade, school, role"
+        )
+        .eq("id", data.user.id)
+        .single();
 
-    // Кіретін оқушының нәтижесін жүктейміз
-    loadStudentProgress(foundStudent.id);
+    if (profileError || !profile) {
+      setLoading(false);
 
-    const currentStudent: CurrentStudent = {
-      id: foundStudent.id,
-      name: foundStudent.name,
-      grade: foundStudent.grade,
-      school: foundStudent.school,
-      login: foundStudent.login,
+      alert(
+        "Оқушы профилін жүктеу кезінде қате шықты."
+      );
+
+      return;
+    }
+
+    const currentStudent = {
+      id: profile.id,
+      name: profile.full_name,
+      grade: profile.grade
+        ? `${profile.grade}-сынып`
+        : "",
+      school: profile.school,
+      login: profile.login,
+      role: profile.role,
     };
 
     localStorage.setItem(
@@ -213,19 +87,25 @@ export default function LoginPage() {
 
     localStorage.setItem(
       "smartOqyrmanActiveStudentId",
-      foundStudent.id
+      profile.id
     );
 
-    alert(
-      `Қош келдің, ${foundStudent.name}!`
-    );
+    setLoading(false);
+
+    if (
+      profile.role === "teacher" ||
+      profile.role === "admin"
+    ) {
+      window.location.href = "/admin";
+      return;
+    }
 
     window.location.href = "/profile";
   }
 
   return (
     <main className="min-h-screen bg-slate-50 px-5 py-10">
-      <div className="mx-auto max-w-lg">
+      <div className="mx-auto max-w-md">
 
         <div className="text-center">
           <a
@@ -240,7 +120,7 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <section className="mt-8 rounded-[2rem] bg-white p-8 shadow-lg">
+        <section className="mt-8 rounded-[2rem] bg-white p-7 shadow-lg sm:p-9">
 
           <div className="text-center">
             <div className="text-5xl">
@@ -252,7 +132,7 @@ export default function LoginPage() {
             </h1>
 
             <p className="mt-2 text-slate-500">
-              2026–2027 оқу жылы
+              Логин мен құпиясөзді енгізіңіз
             </p>
           </div>
 
@@ -272,7 +152,7 @@ export default function LoginPage() {
                 onChange={(event) =>
                   setLogin(event.target.value)
                 }
-                placeholder="Логиніңізді енгізіңіз"
+                placeholder="Логин"
                 className="w-full rounded-xl border border-slate-200 px-4 py-4 outline-none focus:border-indigo-500"
               />
             </div>
@@ -288,16 +168,19 @@ export default function LoginPage() {
                 onChange={(event) =>
                   setPassword(event.target.value)
                 }
-                placeholder="Құпиясөзді енгізіңіз"
+                placeholder="Құпиясөз"
                 className="w-full rounded-xl border border-slate-200 px-4 py-4 outline-none focus:border-indigo-500"
               />
             </div>
 
             <button
               type="submit"
-              className="w-full rounded-xl bg-indigo-600 px-6 py-4 text-lg font-extrabold text-white hover:bg-indigo-700"
+              disabled={loading}
+              className="w-full rounded-xl bg-indigo-600 px-6 py-4 text-lg font-extrabold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Кіру →
+              {loading
+                ? "Кіруде..."
+                : "Кіру →"}
             </button>
 
           </form>
@@ -305,19 +188,23 @@ export default function LoginPage() {
           <div className="mt-7 border-t border-slate-100 pt-6 text-center">
 
             <p className="text-sm text-slate-500">
-              Әлі тіркелмедің бе?
+              Әлі тіркелмедіңіз бе?
             </p>
 
             <a
               href="/register"
               className="mt-3 inline-block rounded-xl bg-indigo-50 px-6 py-3 font-bold text-indigo-700"
             >
-              Жаңа оқушыны тіркеу
+              Тіркелу
             </a>
 
           </div>
 
         </section>
+
+        <p className="mt-6 text-center text-sm text-slate-400">
+          SMART OQYRMAN · 2026–2027
+        </p>
 
       </div>
     </main>

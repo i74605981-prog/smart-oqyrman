@@ -1,31 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-
-type StudentAccount = {
-  id: string;
-  name: string;
-  grade: string;
-  school: string;
-  login: string;
-  password: string;
-};
-
-type CurrentStudent = {
-  id: string;
-  name: string;
-  grade: string;
-  school: string;
-  login: string;
-};
-
-type StudentProgress = {
-  history: unknown[];
-  readingResults: Record<string, unknown>;
-  testResults: Record<string, unknown>;
-  creativeResults: Record<string, unknown>;
-  reviewResults: Record<string, unknown>;
-};
+import { createClient } from "../../utils/supabase/client";
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
@@ -33,78 +9,21 @@ export default function RegisterPage() {
   const [school, setSchool] = useState("");
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  function saveCurrentStudentProgress() {
-    const currentStudentString =
-      localStorage.getItem("smartOqyrmanStudent");
-
-    if (!currentStudentString) {
-      return;
-    }
-
-    const currentStudent = JSON.parse(currentStudentString);
-
-    const currentId =
-      localStorage.getItem("smartOqyrmanActiveStudentId") ||
-      currentStudent.id ||
-      currentStudent.login?.toLowerCase();
-
-    if (!currentId) {
-      return;
-    }
-
-    const allProgress = JSON.parse(
-      localStorage.getItem("smartOqyrmanStudentData") || "{}"
-    );
-
-    allProgress[currentId] = {
-      history: JSON.parse(
-        localStorage.getItem("smartOqyrmanBookHistory") || "[]"
-      ),
-
-      readingResults: JSON.parse(
-        localStorage.getItem("smartOqyrmanReadingResults") || "{}"
-      ),
-
-      testResults: JSON.parse(
-        localStorage.getItem("smartOqyrmanTestResults") || "{}"
-      ),
-
-      creativeResults: JSON.parse(
-        localStorage.getItem("smartOqyrmanCreativeResults") || "{}"
-      ),
-
-      reviewResults: JSON.parse(
-        localStorage.getItem("smartOqyrmanReviewResults") || "{}"
-      ),
-    };
-
-    localStorage.setItem(
-      "smartOqyrmanStudentData",
-      JSON.stringify(allProgress)
-    );
-  }
-
-  function clearCurrentProgress() {
-    localStorage.removeItem("smartOqyrmanCurrentBook");
-    localStorage.removeItem("smartOqyrmanBookHistory");
-    localStorage.removeItem("smartOqyrmanReadingResults");
-    localStorage.removeItem("smartOqyrmanTestResults");
-    localStorage.removeItem("smartOqyrmanTestResult");
-    localStorage.removeItem("smartOqyrmanCreativeResults");
-    localStorage.removeItem("smartOqyrmanCreativeResult");
-    localStorage.removeItem("smartOqyrmanReviewResults");
-    localStorage.removeItem("smartOqyrmanReviewResult");
-    localStorage.removeItem("smartOqyrmanReadingStatus");
-  }
-
-  function handleRegister(event: FormEvent<HTMLFormElement>) {
+  async function handleRegister(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
     const cleanName = name.trim();
     const cleanGrade = grade.trim();
     const cleanSchool = school.trim();
-    const cleanLogin = login.trim().toLowerCase();
+    const cleanLogin = login
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "");
+
     const cleanPassword = password.trim();
 
     if (
@@ -118,72 +37,72 @@ export default function RegisterPage() {
       return;
     }
 
-    if (cleanPassword.length < 4) {
-      alert("Құпиясөз кемінде 4 таңбадан тұруы керек.");
+    if (cleanPassword.length < 6) {
+      alert("Құпиясөз кемінде 6 таңбадан тұруы керек.");
       return;
     }
 
-    const students: StudentAccount[] = JSON.parse(
-      localStorage.getItem("smartOqyrmanStudents") || "[]"
-    );
+    setLoading(true);
 
-    const loginExists = students.some(
-      (student) => student.login.toLowerCase() === cleanLogin
-    );
+    const supabase = createClient();
 
-    if (loginExists) {
-      alert(
-        "Бұл логин бұрын тіркелген. Басқа логин таңдаңыз."
-      );
-      return;
-    }
+    // Оқушы email енгізбейді.
+    // Логин Supabase Auth үшін ішкі email-ға айналады.
+    const internalEmail =
+      `${cleanLogin}@smart-oqyrman.local`;
 
-    // Бұрын кіріп тұрған оқушының нәтижесін сақтаймыз
-    saveCurrentStudentProgress();
-
-    const studentId =
-      `${cleanLogin}-${Date.now()}`;
-
-    const newStudent: StudentAccount = {
-      id: studentId,
-      name: cleanName,
-      grade: cleanGrade,
-      school: cleanSchool,
-      login: cleanLogin,
+    const {
+      data,
+      error,
+    } = await supabase.auth.signUp({
+      email: internalEmail,
       password: cleanPassword,
-    };
 
-    students.push(newStudent);
+      options: {
+        data: {
+          login: cleanLogin,
+          full_name: cleanName,
+          grade: cleanGrade,
+          school: cleanSchool,
+        },
+      },
+    });
 
-    localStorage.setItem(
-      "smartOqyrmanStudents",
-      JSON.stringify(students)
-    );
+    if (error) {
+      setLoading(false);
 
-    // Жаңа оқушыға жеке бос оқу кеңістігін дайындаймыз
-    const allProgress: Record<string, StudentProgress> =
-      JSON.parse(
-        localStorage.getItem("smartOqyrmanStudentData") || "{}"
+      if (
+        error.message.toLowerCase().includes("already")
+      ) {
+        alert(
+          "Бұл логин бұрын тіркелген. Басқа логин таңдаңыз."
+        );
+        return;
+      }
+
+      alert(
+        `Тіркелу кезінде қате шықты: ${error.message}`
       );
 
-    allProgress[studentId] = {
-      history: [],
-      readingResults: {},
-      testResults: {},
-      creativeResults: {},
-      reviewResults: {},
-    };
+      return;
+    }
 
-    localStorage.setItem(
-      "smartOqyrmanStudentData",
-      JSON.stringify(allProgress)
-    );
+    if (!data.user) {
+      setLoading(false);
 
-    // Жаңа оқушы белсенді оқушы болады
-    const currentStudent: CurrentStudent = {
-      id: studentId,
+      alert(
+        "Оқушы тіркелмеді. Қайтадан көріңіз."
+      );
+
+      return;
+    }
+
+    // Қазіргі сайттағы беттер уақытша жұмысын жалғастыру үшін
+    // оқушы туралы негізгі ақпарат localStorage-қа да сақталады.
+    const currentStudent = {
+      id: data.user.id,
       name: cleanName,
-      grade: cleanGrade,
+      grade: `${cleanGrade}-сынып`,
       school: cleanSchool,
       login: cleanLogin,
     };
@@ -195,17 +114,27 @@ export default function RegisterPage() {
 
     localStorage.setItem(
       "smartOqyrmanActiveStudentId",
-      studentId
+      data.user.id
     );
 
-    // Жаңа оқушы бұрынғы оқушының нәтижесін көрмеуі керек
-    clearCurrentProgress();
+    setLoading(false);
 
+    // Егер Supabase бірден сессия берсе
+    if (data.session) {
+      alert(
+        `${cleanName}, SMART OQYRMAN платформасына сәтті тіркелдіңіз!`
+      );
+
+      window.location.href = "/profile";
+      return;
+    }
+
+    // Email confirmation қосулы болса
     alert(
-      `${cleanName}, SMART OQYRMAN платформасына сәтті тіркелдіңіз!`
+      "Оқушы тіркелді. Енді жүйеге кіру бетіне өтеміз."
     );
 
-    window.location.href = "/profile";
+    window.location.href = "/login";
   }
 
   return (
@@ -214,6 +143,7 @@ export default function RegisterPage() {
 
         {/* HEADER */}
         <div className="text-center">
+
           <a
             href="/"
             className="text-3xl font-extrabold text-indigo-700"
@@ -224,12 +154,14 @@ export default function RegisterPage() {
           <p className="mt-2 text-slate-500">
             Кітап оқы. Ойлан. Талда. Дамы.
           </p>
+
         </div>
 
         {/* CARD */}
         <section className="mt-8 rounded-[2rem] bg-white p-7 shadow-lg sm:p-10">
 
           <div className="text-center">
+
             <div className="text-5xl">
               📚
             </div>
@@ -241,6 +173,7 @@ export default function RegisterPage() {
             <p className="mt-2 text-slate-500">
               2026–2027 оқу жылы
             </p>
+
           </div>
 
           <form
@@ -250,6 +183,7 @@ export default function RegisterPage() {
 
             {/* NAME */}
             <div>
+
               <label className="mb-2 block font-bold text-slate-700">
                 Оқушының аты-жөні
               </label>
@@ -263,10 +197,12 @@ export default function RegisterPage() {
                 placeholder="Мысалы: Мұхтар Назерке"
                 className="w-full rounded-xl border border-slate-200 px-4 py-4 outline-none focus:border-indigo-500"
               />
+
             </div>
 
             {/* GRADE */}
             <div>
+
               <label className="mb-2 block font-bold text-slate-700">
                 Сыныбы
               </label>
@@ -278,34 +214,38 @@ export default function RegisterPage() {
                 }
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-4 outline-none focus:border-indigo-500"
               >
+
                 <option value="">
                   Сыныпты таңдаңыз
                 </option>
 
-                <option value="5-сынып">
+                <option value="5">
                   5-сынып
                 </option>
 
-                <option value="6-сынып">
+                <option value="6">
                   6-сынып
                 </option>
 
-                <option value="7-сынып">
+                <option value="7">
                   7-сынып
                 </option>
 
-                <option value="8-сынып">
+                <option value="8">
                   8-сынып
                 </option>
 
-                <option value="9-сынып">
+                <option value="9">
                   9-сынып
                 </option>
+
               </select>
+
             </div>
 
             {/* SCHOOL */}
             <div>
+
               <label className="mb-2 block font-bold text-slate-700">
                 Мектеп
               </label>
@@ -319,10 +259,12 @@ export default function RegisterPage() {
                 placeholder="Мектеп атауы"
                 className="w-full rounded-xl border border-slate-200 px-4 py-4 outline-none focus:border-indigo-500"
               />
+
             </div>
 
             {/* LOGIN */}
             <div>
+
               <label className="mb-2 block font-bold text-slate-700">
                 Логин
               </label>
@@ -340,10 +282,12 @@ export default function RegisterPage() {
               <p className="mt-2 text-sm text-slate-400">
                 Әр оқушының логині қайталанбауы керек.
               </p>
+
             </div>
 
             {/* PASSWORD */}
             <div>
+
               <label className="mb-2 block font-bold text-slate-700">
                 Құпиясөз
               </label>
@@ -354,30 +298,37 @@ export default function RegisterPage() {
                 onChange={(event) =>
                   setPassword(event.target.value)
                 }
-                placeholder="Кемінде 4 таңба"
+                placeholder="Кемінде 6 таңба"
                 className="w-full rounded-xl border border-slate-200 px-4 py-4 outline-none focus:border-indigo-500"
               />
+
             </div>
 
             <button
               type="submit"
-              className="w-full rounded-xl bg-indigo-600 px-6 py-4 text-lg font-extrabold text-white hover:bg-indigo-700"
+              disabled={loading}
+              className="w-full rounded-xl bg-indigo-600 px-6 py-4 text-lg font-extrabold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              ✅ Тіркелу
+              {loading
+                ? "Тіркелуде..."
+                : "✅ Тіркелу"}
             </button>
 
           </form>
 
-          <div className="mt-7 rounded-2xl bg-indigo-50 p-5">
+          {/* LOGIN */}
+          <div className="mt-7 border-t border-slate-100 pt-6 text-center">
 
-            <p className="font-bold text-indigo-700">
-              📖 Тіркелгеннен кейін
+            <p className="text-sm text-slate-500">
+              Бұрын тіркелдіңіз бе?
             </p>
 
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Оқушы жеке кабинетке кіріп, кітап таңдап,
-              оқу тапсырмаларын орындай алады.
-            </p>
+            <a
+              href="/login"
+              className="mt-3 inline-block rounded-xl bg-indigo-50 px-6 py-3 font-bold text-indigo-700"
+            >
+              Жеке кабинетке кіру →
+            </a>
 
           </div>
 

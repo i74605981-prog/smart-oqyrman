@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createClient } from "../../utils/supabase/client";
 
 type Book = {
   id: number;
@@ -18,52 +19,27 @@ const questionBank: Record<string, Question[]> = {
   "Ауыл шетіндегі үй": [
     {
       question: "«Ауыл шетіндегі үй» шығармасының авторы кім?",
-      options: [
-        "Әкім Тарази",
-        "Дулат Исабеков",
-        "Мұхтар Әуезов",
-        "Сайын Мұратбеков",
-      ],
+      options: ["Әкім Тарази", "Дулат Исабеков", "Мұхтар Әуезов", "Сайын Мұратбеков"],
       answer: "Әкім Тарази",
     },
     {
       question: "Шығармада қандай орта суреттеледі?",
-      options: [
-        "Ауыл өмірі",
-        "Ғарыш әлемі",
-        "Теңіз өмірі",
-        "Шетелдегі өмір",
-      ],
+      options: ["Ауыл өмірі", "Ғарыш әлемі", "Теңіз өмірі", "Шетелдегі өмір"],
       answer: "Ауыл өмірі",
     },
     {
       question: "Шығармада неге көңіл бөлінеді?",
-      options: [
-        "Адамдардың қарым-қатынасына",
-        "Спорт жарысына",
-        "Ғылыми тәжірибеге",
-        "Саяхатқа",
-      ],
+      options: ["Адамдардың қарым-қатынасына", "Спорт жарысына", "Ғылыми тәжірибеге", "Саяхатқа"],
       answer: "Адамдардың қарым-қатынасына",
     },
     {
       question: "Шығармада қандай сезімдер көрініс табады?",
-      options: [
-        "Мейірімділік пен сағыныш",
-        "Тек қуаныш",
-        "Тек ашу",
-        "Бәсекелестік",
-      ],
+      options: ["Мейірімділік пен сағыныш", "Тек қуаныш", "Тек ашу", "Бәсекелестік"],
       answer: "Мейірімділік пен сағыныш",
     },
     {
       question: "Шығарма оқырманды не туралы ойландырады?",
-      options: [
-        "Туған жер мен жақын адамдардың қадірі",
-        "Тек байлық",
-        "Жарыста жеңу",
-        "Ғарышты зерттеу",
-      ],
+      options: ["Туған жер мен жақын адамдардың қадірі", "Тек байлық", "Жарыста жеңу", "Ғарышты зерттеу"],
       answer: "Туған жер мен жақын адамдардың қадірі",
     },
   ],
@@ -71,12 +47,7 @@ const questionBank: Record<string, Question[]> = {
   "Мәңгілік бала бейнесі": [
     {
       question: "«Мәңгілік бала бейнесі» шығармасының авторы кім?",
-      options: [
-        "Роза Мұқанова",
-        "Мұхтар Мағауин",
-        "Әкім Тарази",
-        "Дулат Исабеков",
-      ],
+      options: ["Роза Мұқанова", "Мұхтар Мағауин", "Әкім Тарази", "Дулат Исабеков"],
       answer: "Роза Мұқанова",
     },
     {
@@ -86,32 +57,17 @@ const questionBank: Record<string, Question[]> = {
     },
     {
       question: "Шығарма қандай тарихи қасіретпен байланысты?",
-      options: [
-        "Семей ядролық полигоны",
-        "Арал теңізі",
-        "Ғарышқа ұшу",
-        "Спорт жарысы",
-      ],
+      options: ["Семей ядролық полигоны", "Арал теңізі", "Ғарышқа ұшу", "Спорт жарысы"],
       answer: "Семей ядролық полигоны",
     },
     {
       question: "Ләйлә тағдыры арқылы автор нені көрсетеді?",
-      options: [
-        "Ядролық сынақтың адамға зардабын",
-        "Спорттың пайдасын",
-        "Қала өмірін",
-        "Мектептегі достықты",
-      ],
+      options: ["Ядролық сынақтың адамға зардабын", "Спорттың пайдасын", "Қала өмірін", "Мектептегі достықты"],
       answer: "Ядролық сынақтың адамға зардабын",
     },
     {
       question: "Шығарманың тәрбиелік ойына қайсысы жақын?",
-      options: [
-        "Бейбіт өмірді бағалау",
-        "Тек жеңіске ұмтылу",
-        "Байлық жинау",
-        "Басқалардан озу",
-      ],
+      options: ["Бейбіт өмірді бағалау", "Тек жеңіске ұмтылу", "Байлық жинау", "Басқалардан озу"],
       answer: "Бейбіт өмірді бағалау",
     },
   ],
@@ -119,12 +75,7 @@ const questionBank: Record<string, Question[]> = {
   "Көксерек": [
     {
       question: "«Көксерек» шығармасының авторы кім?",
-      options: [
-        "Мұхтар Әуезов",
-        "Бердібек Соқпақбаев",
-        "Мұхтар Мағауин",
-        "Әкім Тарази",
-      ],
+      options: ["Мұхтар Әуезов", "Бердібек Соқпақбаев", "Мұхтар Мағауин", "Әкім Тарази"],
       answer: "Мұхтар Әуезов",
     },
     {
@@ -139,22 +90,12 @@ const questionBank: Record<string, Question[]> = {
     },
     {
       question: "Шығармадағы негізгі мәселелердің бірі қандай?",
-      options: [
-        "Адам мен табиғат байланысы",
-        "Ғарыш",
-        "Спорт",
-        "Мектеп өмірі",
-      ],
+      options: ["Адам мен табиғат байланысы", "Ғарыш", "Спорт", "Мектеп өмірі"],
       answer: "Адам мен табиғат байланысы",
     },
     {
       question: "Шығарманың негізгі ойына қайсысы жақын?",
-      options: [
-        "Табиғат заңдылығын құрметтеу",
-        "Жабайы аңды міндетті түрде қолға үйрету",
-        "Тек жеңіске жету",
-        "Байлыққа ұмтылу",
-      ],
+      options: ["Табиғат заңдылығын құрметтеу", "Жабайы аңды міндетті түрде қолға үйрету", "Тек жеңіске жету", "Байлыққа ұмтылу"],
       answer: "Табиғат заңдылығын құрметтеу",
     },
   ],
@@ -162,12 +103,7 @@ const questionBank: Record<string, Question[]> = {
   "Гауһартас": [
     {
       question: "«Гауһартас» шығармасының авторы кім?",
-      options: [
-        "Дулат Исабеков",
-        "Сайын Мұратбеков",
-        "Мұхтар Әуезов",
-        "Роза Мұқанова",
-      ],
+      options: ["Дулат Исабеков", "Сайын Мұратбеков", "Мұхтар Әуезов", "Роза Мұқанова"],
       answer: "Дулат Исабеков",
     },
     {
@@ -182,22 +118,12 @@ const questionBank: Record<string, Question[]> = {
     },
     {
       question: "Шығармада қандай құндылық маңызды орын алады?",
-      options: [
-        "Отбасы құндылығы",
-        "Ғарыш зерттеу",
-        "Спорт",
-        "Саяхат",
-      ],
+      options: ["Отбасы құндылығы", "Ғарыш зерттеу", "Спорт", "Саяхат"],
       answer: "Отбасы құндылығы",
     },
     {
       question: "Салтанат бейнесіне қай сипаттама сәйкес келеді?",
-      options: [
-        "Мейірімді, ақкөңіл",
-        "Қатал, тұйық",
-        "Өте тәкаппар",
-        "Қорқақ",
-      ],
+      options: ["Мейірімді, ақкөңіл", "Қатал, тұйық", "Өте тәкаппар", "Қорқақ"],
       answer: "Мейірімді, ақкөңіл",
     },
   ],
@@ -205,52 +131,27 @@ const questionBank: Record<string, Question[]> = {
   "Тұлпардың тағдыры": [
     {
       question: "«Тұлпардың тағдыры» шығармасының авторы кім?",
-      options: [
-        "Тәкен Әлімқұлов",
-        "Әкім Тарази",
-        "Дулат Исабеков",
-        "Мұхтар Әуезов",
-      ],
+      options: ["Тәкен Әлімқұлов", "Әкім Тарази", "Дулат Исабеков", "Мұхтар Әуезов"],
       answer: "Тәкен Әлімқұлов",
     },
     {
       question: "Шығарма атауындағы «тұлпар» нені білдіреді?",
-      options: [
-        "Жүйрік жылқыны",
-        "Қасқырды",
-        "Қыран құсты",
-        "Түйені",
-      ],
+      options: ["Жүйрік жылқыны", "Қасқырды", "Қыран құсты", "Түйені"],
       answer: "Жүйрік жылқыны",
     },
     {
       question: "Шығармадағы негізгі тақырыптардың бірі қандай?",
-      options: [
-        "Бәйге мен тұлпар тағдыры",
-        "Ғарыш сапары",
-        "Мектеп өмірі",
-        "Теңіз саяхаты",
-      ],
+      options: ["Бәйге мен тұлпар тағдыры", "Ғарыш сапары", "Мектеп өмірі", "Теңіз саяхаты"],
       answer: "Бәйге мен тұлпар тағдыры",
     },
     {
       question: "Бәйгеде қандай құбылыс көрініс табады?",
-      options: [
-        "Бәсеке мен бақталастық",
-        "Ғылыми тәжірибе",
-        "Мектеп сабағы",
-        "Теңіз саяхаты",
-      ],
+      options: ["Бәсеке мен бақталастық", "Ғылыми тәжірибе", "Мектеп сабағы", "Теңіз саяхаты"],
       answer: "Бәсеке мен бақталастық",
     },
     {
       question: "Шығармада қандай ұлттық құндылық көрінеді?",
-      options: [
-        "Жылқы мен бәйге мәдениеті",
-        "Теңіз мәдениеті",
-        "Ғарыш мәдениеті",
-        "Қала көлігі",
-      ],
+      options: ["Жылқы мен бәйге мәдениеті", "Теңіз мәдениеті", "Ғарыш мәдениеті", "Қала көлігі"],
       answer: "Жылқы мен бәйге мәдениеті",
     },
   ],
@@ -258,12 +159,7 @@ const questionBank: Record<string, Question[]> = {
   "Менің атым Қожа": [
     {
       question: "«Менің атым Қожа» шығармасының авторы кім?",
-      options: [
-        "Бердібек Соқпақбаев",
-        "Мұхтар Әуезов",
-        "Бауыржан Момышұлы",
-        "Жүсіпбек Аймауытов",
-      ],
+      options: ["Бердібек Соқпақбаев", "Мұхтар Әуезов", "Бауыржан Момышұлы", "Жүсіпбек Аймауытов"],
       answer: "Бердібек Соқпақбаев",
     },
     {
@@ -273,32 +169,17 @@ const questionBank: Record<string, Question[]> = {
     },
     {
       question: "Қожаның мінезіне қай сипаттама сәйкес?",
-      options: [
-        "Тентектеу, бірақ жүрегі таза",
-        "Қатал әрі мейірімсіз",
-        "Өте тұйық",
-        "Ешқашан қателеспейді",
-      ],
+      options: ["Тентектеу, бірақ жүрегі таза", "Қатал әрі мейірімсіз", "Өте тұйық", "Ешқашан қателеспейді"],
       answer: "Тентектеу, бірақ жүрегі таза",
     },
     {
       question: "Қожа өз қателіктеріне қалай қарайды?",
-      options: [
-        "Түсініп, түзелуге тырысады",
-        "Мүлде мойындамайды",
-        "Басқаларды кінәлайды",
-        "Оған бәрібір",
-      ],
+      options: ["Түсініп, түзелуге тырысады", "Мүлде мойындамайды", "Басқаларды кінәлайды", "Оған бәрібір"],
       answer: "Түсініп, түзелуге тырысады",
     },
     {
       question: "Шығарманың тәрбиелік мәнінің бірі қандай?",
-      options: [
-        "Қателіктен сабақ алу",
-        "Тек жарыста жеңу",
-        "Бай болу",
-        "Ешкімді тыңдамау",
-      ],
+      options: ["Қателіктен сабақ алу", "Тек жарыста жеңу", "Бай болу", "Ешкімді тыңдамау"],
       answer: "Қателіктен сабақ алу",
     },
   ],
@@ -306,12 +187,7 @@ const questionBank: Record<string, Question[]> = {
   "Бір атаның балалары": [
     {
       question: "«Бір атаның балалары» шығармасының авторы кім?",
-      options: [
-        "Мұхтар Мағауин",
-        "Мұхтар Әуезов",
-        "Әкім Тарази",
-        "Дулат Исабеков",
-      ],
+      options: ["Мұхтар Мағауин", "Мұхтар Әуезов", "Әкім Тарази", "Дулат Исабеков"],
       answer: "Мұхтар Мағауин",
     },
     {
@@ -321,32 +197,17 @@ const questionBank: Record<string, Question[]> = {
     },
     {
       question: "Шығарма қандай кезеңдегі балалар тағдырын көрсетеді?",
-      options: [
-        "Соғыс жылдары",
-        "Ғарыш дәуірі",
-        "Қазіргі спорт әлемі",
-        "Ежелгі дәуір",
-      ],
+      options: ["Соғыс жылдары", "Ғарыш дәуірі", "Қазіргі спорт әлемі", "Ежелгі дәуір"],
       answer: "Соғыс жылдары",
     },
     {
       question: "Қазақ отбасының Зигфридті қабылдауы нені көрсетеді?",
-      options: [
-        "Мейірімділік пен бауырмалдықты",
-        "Қаталдықты",
-        "Байлықты",
-        "Бәсекені",
-      ],
+      options: ["Мейірімділік пен бауырмалдықты", "Қаталдықты", "Байлықты", "Бәсекені"],
       answer: "Мейірімділік пен бауырмалдықты",
     },
     {
       question: "Шығарманың негізгі ойына қайсысы жақын?",
-      options: [
-        "Адамдарды ұлтына бөлмей жақсылық жасау",
-        "Тек өзіңді ойлау",
-        "Басқалардан озу",
-        "Қиындықтан қашу",
-      ],
+      options: ["Адамдарды ұлтына бөлмей жақсылық жасау", "Тек өзіңді ойлау", "Басқалардан озу", "Қиындықтан қашу"],
       answer: "Адамдарды ұлтына бөлмей жақсылық жасау",
     },
   ],
@@ -354,22 +215,12 @@ const questionBank: Record<string, Question[]> = {
   "Ұшқан ұя": [
     {
       question: "«Ұшқан ұя» шығармасының авторы кім?",
-      options: [
-        "Бауыржан Момышұлы",
-        "Бердібек Соқпақбаев",
-        "Мұхтар Мағауин",
-        "Әкім Тарази",
-      ],
+      options: ["Бауыржан Момышұлы", "Бердібек Соқпақбаев", "Мұхтар Мағауин", "Әкім Тарази"],
       answer: "Бауыржан Момышұлы",
     },
     {
       question: "Шығармада автордың қай кезеңі баяндалады?",
-      options: [
-        "Балалық шағы",
-        "Қарттық шағы",
-        "Шетелдегі өмірі",
-        "Студенттік шағы",
-      ],
+      options: ["Балалық шағы", "Қарттық шағы", "Шетелдегі өмірі", "Студенттік шағы"],
       answer: "Балалық шағы",
     },
     {
@@ -379,22 +230,12 @@ const questionBank: Record<string, Question[]> = {
     },
     {
       question: "Шығармада қандай құндылықтар дәріптеледі?",
-      options: [
-        "Отбасы тәрбиесі мен салт-дәстүр",
-        "Тек спорт",
-        "Байлық",
-        "Ғарыш",
-      ],
+      options: ["Отбасы тәрбиесі мен салт-дәстүр", "Тек спорт", "Байлық", "Ғарыш"],
       answer: "Отбасы тәрбиесі мен салт-дәстүр",
     },
     {
       question: "Шығарманың негізгі тәрбиелік ойы қандай?",
-      options: [
-        "Отбасы тәрбиесінің маңызы",
-        "Тек атаққа жету",
-        "Дәстүрді ұмыту",
-        "Жалғыз өмір сүру",
-      ],
+      options: ["Отбасы тәрбиесінің маңызы", "Тек атаққа жету", "Дәстүрді ұмыту", "Жалғыз өмір сүру"],
       answer: "Отбасы тәрбиесінің маңызы",
     },
   ],
@@ -402,12 +243,7 @@ const questionBank: Record<string, Question[]> = {
   "Жусан иісі": [
     {
       question: "«Жусан иісі» шығармасының авторы кім?",
-      options: [
-        "Сайын Мұратбеков",
-        "Әкім Тарази",
-        "Дулат Исабеков",
-        "Тәкен Әлімқұлов",
-      ],
+      options: ["Сайын Мұратбеков", "Әкім Тарази", "Дулат Исабеков", "Тәкен Әлімқұлов"],
       answer: "Сайын Мұратбеков",
     },
     {
@@ -417,32 +253,17 @@ const questionBank: Record<string, Question[]> = {
     },
     {
       question: "Шығарма оқиғасы қай кезеңмен байланысты?",
-      options: [
-        "Соғыс жылдары",
-        "Ғарыш дәуірі",
-        "Болашақ",
-        "Ежелгі дәуір",
-      ],
+      options: ["Соғыс жылдары", "Ғарыш дәуірі", "Болашақ", "Ежелгі дәуір"],
       answer: "Соғыс жылдары",
     },
     {
       question: "Аян балаларды немен қызықтырады?",
-      options: [
-        "Ертегі айтумен",
-        "Футбол ойнаумен",
-        "Сурет салумен",
-        "Ән айтумен",
-      ],
+      options: ["Ертегі айтумен", "Футбол ойнаумен", "Сурет салумен", "Ән айтумен"],
       answer: "Ертегі айтумен",
     },
     {
       question: "Шығарманың негізгі ойына қайсысы жақын?",
-      options: [
-        "Қиындықта үмітті жоғалтпау",
-        "Тек жеңіс маңызды",
-        "Байлыққа ұмтылу",
-        "Басқаларды жеңу",
-      ],
+      options: ["Қиындықта үмітті жоғалтпау", "Тек жеңіс маңызды", "Байлыққа ұмтылу", "Басқаларды жеңу"],
       answer: "Қиындықта үмітті жоғалтпау",
     },
   ],
@@ -450,12 +271,7 @@ const questionBank: Record<string, Question[]> = {
   "Қартқожа": [
     {
       question: "«Қартқожа» шығармасының авторы кім?",
-      options: [
-        "Жүсіпбек Аймауытов",
-        "Мұхтар Әуезов",
-        "Сайын Мұратбеков",
-        "Бердібек Соқпақбаев",
-      ],
+      options: ["Жүсіпбек Аймауытов", "Мұхтар Әуезов", "Сайын Мұратбеков", "Бердібек Соқпақбаев"],
       answer: "Жүсіпбек Аймауытов",
     },
     {
@@ -465,22 +281,12 @@ const questionBank: Record<string, Question[]> = {
     },
     {
       question: "Қартқожаның басты армандарының бірі қандай?",
-      options: [
-        "Білім алу",
-        "Палуан болу",
-        "Саудагер болу",
-        "Аңшы болу",
-      ],
+      options: ["Білім алу", "Палуан болу", "Саудагер болу", "Аңшы болу"],
       answer: "Білім алу",
     },
     {
       question: "Романда қандай мәселе көтеріледі?",
-      options: [
-        "Әлеуметтік теңсіздік",
-        "Ғарышты зерттеу",
-        "Спорт жарысы",
-        "Теңіз саяхаты",
-      ],
+      options: ["Әлеуметтік теңсіздік", "Ғарышты зерттеу", "Спорт жарысы", "Теңіз саяхаты"],
       answer: "Әлеуметтік теңсіздік",
     },
     {
@@ -493,12 +299,7 @@ const questionBank: Record<string, Question[]> = {
   "Қажымұқан": [
     {
       question: "«Қажымұқан» шығармасының авторы кім?",
-      options: [
-        "Қалмақан Әбдіқадыров",
-        "Жүсіпбек Аймауытов",
-        "Мұхтар Әуезов",
-        "Тәкен Әлімқұлов",
-      ],
+      options: ["Қалмақан Әбдіқадыров", "Жүсіпбек Аймауытов", "Мұхтар Әуезов", "Тәкен Әлімқұлов"],
       answer: "Қалмақан Әбдіқадыров",
     },
     {
@@ -508,32 +309,17 @@ const questionBank: Record<string, Question[]> = {
     },
     {
       question: "Қажымұқанның бойындағы маңызды қасиет қандай?",
-      options: [
-        "Қайсарлық",
-        "Жалқаулық",
-        "Қорқақтық",
-        "Ұқыпсыздық",
-      ],
+      options: ["Қайсарлық", "Жалқаулық", "Қорқақтық", "Ұқыпсыздық"],
       answer: "Қайсарлық",
     },
     {
       question: "Қажымұқан жетістікке қалай жетеді?",
-      options: [
-        "Еңбек пен табандылық арқылы",
-        "Еш әрекет жасамай",
-        "Кездейсоқ",
-        "Тек басқалардың көмегімен",
-      ],
+      options: ["Еңбек пен табандылық арқылы", "Еш әрекет жасамай", "Кездейсоқ", "Тек басқалардың көмегімен"],
       answer: "Еңбек пен табандылық арқылы",
     },
     {
       question: "Қажымұқанның жетістігі нені танытты?",
-      options: [
-        "Қазақ халқының атын әлемге",
-        "Бір мектептің атын",
-        "Бір ауылдың атын ғана",
-        "Бір ойынның атын",
-      ],
+      options: ["Қазақ халқының атын әлемге", "Бір мектептің атын", "Бір ауылдың атын ғана", "Бір ойынның атын"],
       answer: "Қазақ халқының атын әлемге",
     },
   ],
@@ -544,16 +330,65 @@ export default function TestPage() {
   const [answers, setAnswers] = useState<string[]>([]);
   const [score, setScore] = useState<number | null>(null);
   const [correctCount, setCorrectCount] = useState(0);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    loadCurrentBook();
+  }, []);
+
+  async function loadCurrentBook() {
     const savedBook = localStorage.getItem(
       "smartOqyrmanCurrentBook"
     );
 
     if (savedBook) {
-      setBook(JSON.parse(savedBook));
+      try {
+        setBook(JSON.parse(savedBook));
+        return;
+      } catch {
+        localStorage.removeItem(
+          "smartOqyrmanCurrentBook"
+        );
+      }
     }
-  }, []);
+
+    const supabase = createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return;
+    }
+
+    const { data: progress } = await supabase
+      .from("reading_progress")
+      .select("book_id, updated_at")
+      .eq("student_id", user.id)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!progress) {
+      return;
+    }
+
+    const { data: selectedBook } = await supabase
+      .from("books")
+      .select("id, title, author")
+      .eq("id", progress.book_id)
+      .single();
+
+    if (selectedBook) {
+      setBook(selectedBook);
+
+      localStorage.setItem(
+        "smartOqyrmanCurrentBook",
+        JSON.stringify(selectedBook)
+      );
+    }
+  }
 
   if (!book) {
     return (
@@ -608,16 +443,14 @@ export default function TestPage() {
     questionIndex: number,
     option: string
   ) {
-    if (score !== null) return;
+    if (score !== null || saving) return;
 
     const newAnswers = [...answers];
-
     newAnswers[questionIndex] = option;
-
     setAnswers(newAnswers);
   }
 
-  function finishTest() {
+  async function finishTest() {
     const unanswered = questions.some(
       (_, index) => !answers[index]
     );
@@ -637,16 +470,81 @@ export default function TestPage() {
 
     const result = correct * 10;
 
-    setCorrectCount(correct);
-    setScore(result);
+    setSaving(true);
+
+    const supabase = createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setSaving(false);
+
+      alert(
+        "Тест нәтижесін сақтау үшін жүйеге қайта кіріңіз."
+      );
+
+      window.location.href = "/login";
+      return;
+    }
+
+    const now = new Date().toISOString();
+
+    const { error } = await supabase
+      .from("test_results")
+      .upsert(
+        {
+          student_id: user.id,
+          book_id: currentBook.id,
+          correct_answers: correct,
+          total_questions: 5,
+          score: result,
+          max_score: 50,
+          completed: true,
+          updated_at: now,
+        },
+        {
+          onConflict: "student_id,book_id",
+        }
+      );
+
+    if (error) {
+      console.error(error);
+      setSaving(false);
+
+      alert(
+        "Тест нәтижесін Supabase-қа сақтау кезінде қате шықты."
+      );
+
+      return;
+    }
 
     const oldResults = localStorage.getItem(
       "smartOqyrmanTestResults"
     );
 
-    const results = oldResults
-      ? JSON.parse(oldResults)
-      : {};
+    let results: Record<
+      string,
+      {
+        bookId: number;
+        book: string;
+        author: string;
+        correctAnswers: number;
+        totalQuestions: number;
+        score: number;
+        maxScore: number;
+        completed: boolean;
+      }
+    > = {};
+
+    if (oldResults) {
+      try {
+        results = JSON.parse(oldResults);
+      } catch {
+        results = {};
+      }
+    }
 
     results[currentBook.title] = {
       bookId: currentBook.id,
@@ -668,6 +566,10 @@ export default function TestPage() {
       "smartOqyrmanTestResult",
       JSON.stringify(results[currentBook.title])
     );
+
+    setCorrectCount(correct);
+    setScore(result);
+    setSaving(false);
   }
 
   return (
@@ -738,59 +640,57 @@ export default function TestPage() {
 
                 <div className="mt-5 space-y-3">
 
-                  {question.options.map(
-                    (option) => {
-                      const selected =
-                        answers[questionIndex] === option;
+                  {question.options.map((option) => {
+                    const selected =
+                      answers[questionIndex] === option;
 
-                      let style =
-                        "border-slate-200 bg-white text-slate-700";
+                    let style =
+                      "border-slate-200 bg-white text-slate-700";
 
-                      if (
-                        score === null &&
-                        selected
-                      ) {
-                        style =
-                          "border-indigo-600 bg-indigo-50 text-indigo-700";
-                      }
-
-                      if (
-                        score !== null &&
-                        option === question.answer
-                      ) {
-                        style =
-                          "border-emerald-500 bg-emerald-50 text-emerald-700";
-                      }
-
-                      if (
-                        score !== null &&
-                        selected &&
-                        option !== question.answer
-                      ) {
-                        style =
-                          "border-red-400 bg-red-50 text-red-700";
-                      }
-
-                      return (
-                        <button
-                          key={option}
-                          type="button"
-                          onClick={() =>
-                            chooseAnswer(
-                              questionIndex,
-                              option
-                            )
-                          }
-                          className={`w-full rounded-xl border p-4 text-left font-semibold transition ${style}`}
-                        >
-                          {option}
-                        </button>
-                      );
+                    if (
+                      score === null &&
+                      selected
+                    ) {
+                      style =
+                        "border-indigo-600 bg-indigo-50 text-indigo-700";
                     }
-                  )}
+
+                    if (
+                      score !== null &&
+                      option === question.answer
+                    ) {
+                      style =
+                        "border-emerald-500 bg-emerald-50 text-emerald-700";
+                    }
+
+                    if (
+                      score !== null &&
+                      selected &&
+                      option !== question.answer
+                    ) {
+                      style =
+                        "border-red-400 bg-red-50 text-red-700";
+                    }
+
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() =>
+                          chooseAnswer(
+                            questionIndex,
+                            option
+                          )
+                        }
+                        disabled={saving}
+                        className={`w-full rounded-xl border p-4 text-left font-semibold transition ${style}`}
+                      >
+                        {option}
+                      </button>
+                    );
+                  })}
 
                 </div>
-
               </div>
             )
           )}
@@ -801,9 +701,12 @@ export default function TestPage() {
           <button
             type="button"
             onClick={finishTest}
-            className="mt-7 w-full rounded-xl bg-emerald-600 px-6 py-4 text-lg font-extrabold text-white hover:bg-emerald-700"
+            disabled={saving}
+            className="mt-7 w-full rounded-xl bg-emerald-600 px-6 py-4 text-lg font-extrabold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            ✅ Тестті аяқтау
+            {saving
+              ? "Нәтиже сақталуда..."
+              : "✅ Тестті аяқтау"}
           </button>
         ) : (
           <section className="mt-7 rounded-3xl bg-emerald-50 p-8 text-center">
@@ -829,7 +732,7 @@ export default function TestPage() {
             </p>
 
             <p className="mt-2 text-slate-500">
-              Нәтиже жеке кабинетке сақталды.
+              ✅ Нәтиже Supabase дерекқорына сақталды.
             </p>
 
             <a

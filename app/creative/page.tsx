@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, useEffect, useState } from "react";
+import { createClient } from "../../utils/supabase/client";
 
 type Book = {
   id: number;
@@ -8,94 +9,102 @@ type Book = {
   author: string;
 };
 
-type CreativeTask = {
-  id: number;
-  title: string;
-  description: string;
-  icon: string;
-};
-
-const creativeTasks: CreativeTask[] = [
-  {
-    id: 1,
-    title: "Кейіпкерге мінездеме",
-    description:
-      "Шығармадағы бір кейіпкерді таңдап, оның мінезін, іс-әрекетін және өз пікіріңді жаз.",
-    icon: "👤",
-  },
-  {
-    id: 2,
-    title: "Маған әсер еткен тұсы",
-    description:
-      "Кітаптағы саған ерекше әсер еткен оқиғаны немесе бөлімді жазып, себебін түсіндір.",
-    icon: "💭",
-  },
-  {
-    id: 3,
-    title: "5 негізгі сөз",
-    description:
-      "Шығарманың мазмұнын ашатын 5 негізгі сөзді жаз және неге таңдағаныңды қысқаша түсіндір.",
-    icon: "🔑",
-  },
-  {
-    id: 4,
-    title: "Кейіпкерге хат",
-    description:
-      "Шығармадағы өзің таңдаған кейіпкерге арнап қысқаша хат жаз.",
-    icon: "✉️",
-  },
+const taskOptions = [
+  "Кейіпкерге мінездеме",
+  "Маған әсер еткен тұсы",
+  "5 негізгі сөз",
+  "Кейіпкерге хат",
 ];
 
 export default function CreativePage() {
   const [book, setBook] = useState<Book | null>(null);
-
-  const [selectedTask, setSelectedTask] =
-    useState<CreativeTask | null>(null);
-
+  const [taskType, setTaskType] = useState("");
   const [answer, setAnswer] = useState("");
-
   const [fileName, setFileName] = useState("");
-
   const [fileType, setFileType] = useState("");
-
-  const [completed, setCompleted] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    loadCurrentBook();
+  }, []);
+
+  async function loadCurrentBook() {
+    const supabase = createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      window.location.href = "/login";
+      return;
+    }
+
+    let currentBook: Book | null = null;
+
     const savedBook = localStorage.getItem(
       "smartOqyrmanCurrentBook"
     );
 
     if (savedBook) {
-      const currentBook: Book = JSON.parse(savedBook);
+      try {
+        currentBook = JSON.parse(savedBook);
+      } catch {
+        currentBook = null;
+      }
+    }
 
-      setBook(currentBook);
+    if (!currentBook) {
+      const { data: progress } = await supabase
+        .from("reading_progress")
+        .select("book_id, updated_at")
+        .eq("student_id", user.id)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      const savedCreativeResults = localStorage.getItem(
-        "smartOqyrmanCreativeResults"
-      );
+      if (progress) {
+        const { data: selectedBook } = await supabase
+          .from("books")
+          .select("id, title, author")
+          .eq("id", progress.book_id)
+          .single();
 
-      if (savedCreativeResults) {
-        const results = JSON.parse(savedCreativeResults);
+        if (selectedBook) {
+          currentBook = selectedBook;
 
-        const currentResult = results[currentBook.title];
-
-        if (currentResult?.completed) {
-          setCompleted(true);
-          setAnswer(currentResult.answer || "");
-          setFileName(currentResult.fileName || "");
-          setFileType(currentResult.fileType || "");
-
-          const oldTask = creativeTasks.find(
-            (task) => task.id === currentResult.taskId
+          localStorage.setItem(
+            "smartOqyrmanCurrentBook",
+            JSON.stringify(selectedBook)
           );
-
-          if (oldTask) {
-            setSelectedTask(oldTask);
-          }
         }
       }
     }
-  }, []);
+
+    if (currentBook) {
+      setBook(currentBook);
+
+      const { data: existing } = await supabase
+        .from("creative_submissions")
+        .select(
+          "task_type, answer, file_path, score, completed"
+        )
+        .eq("student_id", user.id)
+        .eq("book_id", currentBook.id)
+        .maybeSingle();
+
+      if (existing) {
+        setTaskType(existing.task_type ?? "");
+        setAnswer(existing.answer ?? "");
+        setFileName(existing.file_path ?? "");
+        setSaved(existing.completed === true);
+      }
+    }
+
+    setLoading(false);
+  }
 
   function handleFile(
     event: ChangeEvent<HTMLInputElement>
@@ -103,6 +112,8 @@ export default function CreativePage() {
     const file = event.target.files?.[0];
 
     if (!file) {
+      setFileName("");
+      setFileType("");
       return;
     }
 
@@ -110,20 +121,65 @@ export default function CreativePage() {
     setFileType(file.type);
   }
 
-  function submitTask() {
+  async function saveCreative() {
     if (!book) {
+      alert("Алдымен кітап таңдаңыз.");
       return;
     }
 
-    if (!selectedTask) {
-      alert("Алдымен шығармашылық тапсырманың бір түрін таңдаңыз.");
+    if (!taskType) {
+      alert("Шығармашылық тапсырма түрін таңдаңыз.");
       return;
     }
 
-    if (answer.trim().length < 5 && !fileName) {
-      alert(
-        "Жауабыңызды жазыңыз немесе фото, аудио, видео файл таңдаңыз."
+    if (!answer.trim()) {
+      alert("Жауабыңызды жазыңыз.");
+      return;
+    }
+
+    setSaving(true);
+
+    const supabase = createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setSaving(false);
+      window.location.href = "/login";
+      return;
+    }
+
+    const now = new Date().toISOString();
+
+    const { error } = await supabase
+      .from("creative_submissions")
+      .upsert(
+        {
+          student_id: user.id,
+          book_id: book.id,
+          task_type: taskType,
+          answer: answer.trim(),
+          file_path: fileName || null,
+          score: 10,
+          completed: true,
+          submitted_at: now,
+          updated_at: now,
+        },
+        {
+          onConflict: "student_id,book_id",
+        }
       );
+
+    if (error) {
+      console.error(error);
+      setSaving(false);
+
+      alert(
+        "Шығармашылық тапсырманы сақтау кезінде қате шықты."
+      );
+
       return;
     }
 
@@ -131,21 +187,34 @@ export default function CreativePage() {
       "smartOqyrmanCreativeResults"
     );
 
-    const results = oldResults
-      ? JSON.parse(oldResults)
-      : {};
+    let results: Record<
+      string,
+      {
+        bookId: number;
+        taskType: string;
+        answer: string;
+        fileName: string;
+        fileType: string;
+        score: number;
+        completed: boolean;
+      }
+    > = {};
+
+    if (oldResults) {
+      try {
+        results = JSON.parse(oldResults);
+      } catch {
+        results = {};
+      }
+    }
 
     results[book.title] = {
       bookId: book.id,
-      book: book.title,
-      author: book.author,
-      taskId: selectedTask.id,
-      taskTitle: selectedTask.title,
-      answer: answer,
-      fileName: fileName,
-      fileType: fileType,
+      taskType,
+      answer: answer.trim(),
+      fileName,
+      fileType,
       score: 10,
-      maxScore: 10,
       completed: true,
     };
 
@@ -159,19 +228,36 @@ export default function CreativePage() {
       JSON.stringify(results[book.title])
     );
 
-    setCompleted(true);
+    setSaved(true);
+    setSaving(false);
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-slate-50 px-5 py-20">
+        <p className="text-center font-bold text-slate-500">
+          Жүктелуде...
+        </p>
+      </main>
+    );
   }
 
   if (!book) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-5">
         <div className="max-w-md rounded-3xl bg-white p-8 text-center shadow-lg">
-          <h1 className="text-3xl font-extrabold text-indigo-700">
+
+          <div className="text-5xl">
+            📚
+          </div>
+
+          <h1 className="mt-4 text-3xl font-extrabold text-indigo-700">
             SMART OQYRMAN
           </h1>
 
           <p className="mt-4 text-slate-500">
-            Алдымен кітап таңдаңыз.
+            Шығармашылық тапсырма орындау үшін
+            алдымен кітап таңдаңыз.
           </p>
 
           <a
@@ -180,88 +266,6 @@ export default function CreativePage() {
           >
             Кітап таңдау →
           </a>
-        </div>
-      </main>
-    );
-  }
-
-  if (completed) {
-    return (
-      <main className="min-h-screen bg-slate-50 px-5 py-8">
-        <div className="mx-auto max-w-3xl">
-
-          <header className="rounded-3xl bg-white p-6 shadow-sm">
-            <h1 className="text-3xl font-extrabold text-indigo-700">
-              SMART OQYRMAN
-            </h1>
-
-            <p className="mt-2 text-slate-500">
-              Шығармашылық тапсырма
-            </p>
-          </header>
-
-          <section className="mt-8 rounded-3xl bg-emerald-50 p-8 text-center">
-
-            <div className="text-6xl">
-              🎉
-            </div>
-
-            <h2 className="mt-4 text-3xl font-extrabold text-emerald-700">
-              Тапсырма орындалды!
-            </h2>
-
-            <p className="mt-3 text-xl font-bold text-slate-800">
-              «{book.title}»
-            </p>
-
-            {selectedTask && (
-              <p className="mt-2 text-slate-600">
-                {selectedTask.title}
-              </p>
-            )}
-
-            <div className="mx-auto mt-6 max-w-xs rounded-2xl bg-white p-6 shadow-sm">
-              <p className="text-sm font-bold text-slate-500">
-                ШЫҒАРМАШЫЛЫҚ ҰПАЙ
-              </p>
-
-              <p className="mt-2 text-5xl font-extrabold text-emerald-600">
-                10 / 10
-              </p>
-            </div>
-
-            {answer && (
-              <div className="mt-6 rounded-2xl bg-white p-5 text-left">
-                <p className="font-bold text-slate-700">
-                  Жауабың:
-                </p>
-
-                <p className="mt-2 whitespace-pre-wrap text-slate-600">
-                  {answer}
-                </p>
-              </div>
-            )}
-
-            {fileName && (
-              <div className="mt-4 rounded-2xl bg-white p-5 text-left">
-                <p className="font-bold text-slate-700">
-                  📎 Таңдалған файл
-                </p>
-
-                <p className="mt-2 text-slate-600">
-                  {fileName}
-                </p>
-              </div>
-            )}
-
-            <a
-              href="/profile"
-              className="mt-7 inline-block rounded-xl bg-indigo-600 px-7 py-4 font-bold text-white"
-            >
-              Жеке кабинетке қайту →
-            </a>
-
-          </section>
 
         </div>
       </main>
@@ -270,10 +274,10 @@ export default function CreativePage() {
 
   return (
     <main className="min-h-screen bg-slate-50 px-5 py-8">
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-3xl">
 
-        {/* HEADER */}
         <header className="rounded-3xl bg-white p-6 shadow-sm">
+
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
             <div>
@@ -281,204 +285,173 @@ export default function CreativePage() {
                 SMART OQYRMAN
               </h1>
 
-              <p className="mt-2 text-slate-500">
-                Шығармашылық тапсырма
+              <p className="mt-1 text-slate-500">
+                🎨 Шығармашылық тапсырма
               </p>
             </div>
 
             <a
               href="/profile"
-              className="rounded-xl bg-slate-100 px-5 py-3 text-center font-semibold text-slate-700"
+              className="rounded-xl bg-slate-100 px-5 py-3 text-center font-bold text-slate-700"
             >
               ← Жеке кабинет
             </a>
 
           </div>
+
         </header>
 
-        {/* BOOK */}
-        <section className="mt-6 rounded-3xl bg-gradient-to-r from-amber-500 to-orange-500 p-7 text-white">
+        <section className="mt-6 rounded-3xl bg-gradient-to-br from-violet-600 to-indigo-600 p-7 text-white">
 
-          <p className="text-sm font-bold uppercase tracking-widest text-amber-100">
-            Таңдалған кітап
+          <p className="text-sm font-bold text-violet-100">
+            ТАҢДАЛҒАН КІТАП
           </p>
 
           <h2 className="mt-2 text-3xl font-extrabold">
             «{book.title}»
           </h2>
 
-          <p className="mt-2 text-amber-50">
+          <p className="mt-2 text-violet-100">
             {book.author}
           </p>
 
-          <div className="mt-5 rounded-2xl bg-white/15 p-4">
-            <p className="font-bold">
-              🎨 Шығармашылық тапсырма — 10 ұпай
-            </p>
-          </div>
-
-        </section>
-
-        {/* TASK SELECTION */}
-        <section className="mt-8">
-
-          <h2 className="text-2xl font-extrabold text-slate-800">
-            1. Тапсырманың бірін таңда
-          </h2>
-
-          <p className="mt-2 text-slate-500">
-            Төрт шығармашылық тапсырманың біреуін орындау жеткілікті.
+          <p className="mt-5 rounded-2xl bg-white/10 p-4 font-bold">
+            Шығармашылық жұмыс — 10 ұпай
           </p>
 
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-
-            {creativeTasks.map((task) => {
-              const selected =
-                selectedTask?.id === task.id;
-
-              return (
-                <button
-                  type="button"
-                  key={task.id}
-                  onClick={() =>
-                    setSelectedTask(task)
-                  }
-                  className={`rounded-3xl border-2 p-6 text-left transition ${
-                    selected
-                      ? "border-amber-500 bg-amber-50"
-                      : "border-transparent bg-white shadow-sm"
-                  }`}
-                >
-                  <div className="text-4xl">
-                    {task.icon}
-                  </div>
-
-                  <h3 className="mt-3 text-xl font-extrabold text-slate-800">
-                    {task.title}
-                  </h3>
-
-                  <p className="mt-2 leading-6 text-slate-500">
-                    {task.description}
-                  </p>
-
-                  {selected && (
-                    <p className="mt-4 font-bold text-amber-600">
-                      ✓ Таңдалды
-                    </p>
-                  )}
-                </button>
-              );
-            })}
-
-          </div>
         </section>
 
-        {/* ANSWER */}
-        {selectedTask && (
-          <section className="mt-8 rounded-3xl bg-white p-7 shadow-sm">
+        <section className="mt-6 rounded-3xl bg-white p-7 shadow-sm">
 
-            <p className="text-sm font-bold uppercase tracking-widest text-amber-600">
-              2. Жауабыңды жаз
-            </p>
+          <h2 className="text-xl font-extrabold text-slate-900">
+            1. Тапсырма түрін таңдаңыз
+          </h2>
 
-            <h2 className="mt-2 text-2xl font-extrabold text-slate-800">
-              {selectedTask.icon}{" "}
-              {selectedTask.title}
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+
+            {taskOptions.map((task) => (
+              <button
+                key={task}
+                type="button"
+                onClick={() => {
+                  setTaskType(task);
+                  setSaved(false);
+                }}
+                className={`rounded-2xl border p-4 text-left font-bold transition ${
+                  taskType === task
+                    ? "border-violet-600 bg-violet-50 text-violet-700"
+                    : "border-slate-200 bg-white text-slate-700"
+                }`}
+              >
+                {task}
+              </button>
+            ))}
+
+          </div>
+
+        </section>
+
+        <section className="mt-6 rounded-3xl bg-white p-7 shadow-sm">
+
+          <h2 className="text-xl font-extrabold text-slate-900">
+            2. Жауабыңызды жазыңыз
+          </h2>
+
+          <textarea
+            value={answer}
+            onChange={(event) => {
+              setAnswer(event.target.value);
+              setSaved(false);
+            }}
+            rows={8}
+            placeholder="Ойыңызды осы жерге жазыңыз..."
+            className="mt-5 w-full rounded-2xl border border-slate-200 p-4 outline-none focus:border-violet-500"
+          />
+
+          <p className="mt-2 text-right text-sm text-slate-400">
+            {answer.length} таңба
+          </p>
+
+        </section>
+
+        <section className="mt-6 rounded-3xl bg-white p-7 shadow-sm">
+
+          <h2 className="text-xl font-extrabold text-slate-900">
+            3. Қосымша файл
+          </h2>
+
+          <p className="mt-2 text-sm text-slate-500">
+            Қаласаңыз фото, аудио немесе видео таңдауға болады.
+          </p>
+
+          <input
+            type="file"
+            accept="image/*,audio/*,video/*"
+            onChange={handleFile}
+            className="mt-5 block w-full rounded-xl border border-slate-200 p-3"
+          />
+
+          {fileName && (
+            <div className="mt-4 rounded-xl bg-slate-50 p-4">
+
+              <p className="font-bold text-slate-700">
+                📎 {fileName}
+              </p>
+
+              {fileType && (
+                <p className="mt-1 text-sm text-slate-400">
+                  {fileType}
+                </p>
+              )}
+
+            </div>
+          )}
+
+          <p className="mt-3 text-xs text-slate-400">
+            Ескерту: әзірге базаға файлдың атауы ғана
+            сақталады. Нақты файл жүктеуді кейін қосамыз.
+          </p>
+
+        </section>
+
+        {saved ? (
+          <section className="mt-6 rounded-3xl bg-emerald-50 p-7 text-center">
+
+            <div className="text-5xl">
+              ✅
+            </div>
+
+            <h2 className="mt-3 text-2xl font-extrabold text-emerald-700">
+              Тапсырма сақталды
             </h2>
 
-            <p className="mt-3 text-slate-500">
-              {selectedTask.description}
+            <p className="mt-2 text-lg font-bold text-emerald-700">
+              10 / 10 ұпай
             </p>
-
-            <textarea
-              value={answer}
-              onChange={(event) =>
-                setAnswer(event.target.value)
-              }
-              placeholder="Жауабыңды осы жерге жаз..."
-              className="mt-6 min-h-52 w-full resize-y rounded-2xl border border-slate-200 p-5 text-slate-700 outline-none focus:border-amber-500"
-            />
-
-            <p className="mt-2 text-right text-sm text-slate-400">
-              {answer.length} таңба
-            </p>
-
-          </section>
-        )}
-
-        {/* FILE */}
-        {selectedTask && (
-          <section className="mt-6 rounded-3xl bg-white p-7 shadow-sm">
-
-            <p className="text-sm font-bold uppercase tracking-widest text-indigo-600">
-              Қосымша
-            </p>
-
-            <h2 className="mt-2 text-2xl font-extrabold text-slate-800">
-              📎 Фото, аудио немесе видео қосу
-            </h2>
 
             <p className="mt-2 text-slate-500">
-              Қаласаң, шығармашылық жұмысыңды файл түрінде де таңдай аласың.
+              Нәтиже Supabase дерекқорына сақталды.
             </p>
 
-            <label className="mt-6 flex cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed border-indigo-200 bg-indigo-50 p-8 text-center">
-
-              <span className="text-5xl">
-                📤
-              </span>
-
-              <span className="mt-3 font-bold text-indigo-700">
-                Фото / аудио / видео таңдау
-              </span>
-
-              <span className="mt-1 text-sm text-slate-500">
-                Файлды компьютерден немесе телефоннан таңда
-              </span>
-
-              <input
-                type="file"
-                accept="image/*,audio/*,video/*"
-                onChange={handleFile}
-                className="hidden"
-              />
-
-            </label>
-
-            {fileName && (
-              <div className="mt-4 rounded-2xl bg-emerald-50 p-4">
-
-                <p className="font-bold text-emerald-700">
-                  ✓ Файл таңдалды
-                </p>
-
-                <p className="mt-1 break-all text-sm text-slate-600">
-                  {fileName}
-                </p>
-
-              </div>
-            )}
-
-          </section>
-        )}
-
-        {/* SUBMIT */}
-        {selectedTask && (
-          <section className="mt-6">
-
-            <button
-              type="button"
-              onClick={submitTask}
-              className="w-full rounded-2xl bg-amber-500 px-7 py-5 text-lg font-extrabold text-white hover:bg-amber-600"
+            <a
+              href="/profile"
+              className="mt-6 inline-block rounded-xl bg-indigo-600 px-7 py-3 font-bold text-white"
             >
-              ✅ Тапсырманы жіберу
-            </button>
-
-            <p className="mt-3 text-center text-sm text-slate-400">
-              Тапсырма орындалса — 10 ұпай
-            </p>
+              Жеке кабинетке қайту →
+            </a>
 
           </section>
+        ) : (
+          <button
+            type="button"
+            onClick={saveCreative}
+            disabled={saving}
+            className="mt-6 w-full rounded-xl bg-violet-600 px-6 py-4 text-lg font-extrabold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {saving
+              ? "Сақталуда..."
+              : "✅ Шығармашылық тапсырманы сақтау"}
+          </button>
         )}
 
       </div>

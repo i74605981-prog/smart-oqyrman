@@ -1,396 +1,421 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createClient } from "../../utils/supabase/client";
 
-type Student = {
-  name: string;
-  grade: string;
-  school: string;
+type Profile = {
+  id: string;
   login: string;
+  full_name: string;
+  grade: number | null;
+  school: string;
+  role: string;
 };
 
 type Book = {
   id: number;
   title: string;
   author: string;
+  academic_year: string;
 };
 
-type ReadingResult = {
-  bookId: number;
-  book: string;
-  author: string;
-  status: "not-started" | "reading" | "finished";
-  score: number;
-  completed: boolean;
+type ReadingProgress = {
+  book_id: number;
+  status: string;
+  reading_score: number;
+  started_at: string | null;
+  finished_at: string | null;
+  updated_at: string | null;
 };
 
-type TestResult = {
-  bookId: number;
-  book: string;
-  author: string;
-  correctAnswers: number;
-  totalQuestions: number;
+type ScoreRow = {
+  book_id: number;
   score: number;
-  maxScore: number;
-  completed: boolean;
 };
 
-type CreativeResult = {
-  bookId: number;
-  book: string;
-  author: string;
-  taskId: number;
-  taskTitle: string;
-  answer: string;
-  fileName: string;
-  fileType: string;
-  score: number;
-  maxScore: number;
-  completed: boolean;
-};
-
-type ReviewResult = {
-  bookId: number;
-  book: string;
-  author: string;
-  review: string;
-  score: number;
-  maxScore: number;
-  completed: boolean;
+type BookResult = {
+  book: Book;
+  status: string;
+  readingScore: number;
+  testScore: number;
+  creativeScore: number;
+  reviewScore: number;
+  totalScore: number;
 };
 
 export default function ProfilePage() {
-  const [student, setStudent] = useState<Student | null>(null);
-  const [book, setBook] = useState<Book | null>(null);
-
-  const [readingResults, setReadingResults] = useState<
-    Record<string, ReadingResult>
-  >({});
-
-  const [testResults, setTestResults] = useState<
-    Record<string, TestResult>
-  >({});
-
-  const [creativeResults, setCreativeResults] = useState<
-    Record<string, CreativeResult>
-  >({});
-
-  const [reviewResults, setReviewResults] = useState<
-    Record<string, ReviewResult>
-  >({});
-
-  const [history, setHistory] = useState<Book[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [books, setBooks] = useState<Book[]>([]);
+  const [reading, setReading] = useState<ReadingProgress[]>([]);
+  const [tests, setTests] = useState<ScoreRow[]>([]);
+  const [creative, setCreative] = useState<ScoreRow[]>([]);
+  const [reviews, setReviews] = useState<ScoreRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [finishingBook, setFinishingBook] =
+    useState<number | null>(null);
 
   useEffect(() => {
-    const savedStudent = localStorage.getItem("smartOqyrmanStudent");
-    const savedBook = localStorage.getItem("smartOqyrmanCurrentBook");
-    const savedReading = localStorage.getItem("smartOqyrmanReadingResults");
-    const savedTests = localStorage.getItem("smartOqyrmanTestResults");
-    const savedCreative = localStorage.getItem("smartOqyrmanCreativeResults");
-    const savedReviews = localStorage.getItem("smartOqyrmanReviewResults");
-    const savedHistory = localStorage.getItem("smartOqyrmanBookHistory");
+    loadProfile();
+  }, []);
 
-    if (savedStudent) {
-      setStudent(JSON.parse(savedStudent));
+  async function loadProfile() {
+    const supabase = createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      window.location.href = "/login";
+      return;
     }
 
-    const currentBook: Book | null = savedBook
-      ? JSON.parse(savedBook)
-      : null;
+    const [
+      profileResult,
+      booksResult,
+      readingResult,
+      testResult,
+      creativeResult,
+      reviewResult,
+    ] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select(
+          "id, login, full_name, grade, school, role"
+        )
+        .eq("id", user.id)
+        .single(),
 
-    if (currentBook) {
-      setBook(currentBook);
+      supabase
+        .from("books")
+        .select("id, title, author, academic_year")
+        .eq("active", true)
+        .order("id", { ascending: true }),
+
+      supabase
+        .from("reading_progress")
+        .select(
+          "book_id, status, reading_score, started_at, finished_at, updated_at"
+        )
+        .eq("student_id", user.id)
+        .order("updated_at", { ascending: false }),
+
+      supabase
+        .from("test_results")
+        .select("book_id, score")
+        .eq("student_id", user.id),
+
+      supabase
+        .from("creative_submissions")
+        .select("book_id, score")
+        .eq("student_id", user.id),
+
+      supabase
+        .from("reviews")
+        .select("book_id, score")
+        .eq("student_id", user.id),
+    ]);
+
+    if (profileResult.error) {
+      console.error(profileResult.error);
+      alert("Оқушы профилін жүктеу кезінде қате шықты.");
+      setLoading(false);
+      return;
     }
 
-    const readingMap: Record<string, ReadingResult> = savedReading
-      ? JSON.parse(savedReading)
-      : {};
+    setProfile(profileResult.data);
+    setBooks(booksResult.data ?? []);
+    setReading(readingResult.data ?? []);
+    setTests(testResult.data ?? []);
+    setCreative(creativeResult.data ?? []);
+    setReviews(reviewResult.data ?? []);
 
-    const testMap: Record<string, TestResult> = savedTests
-      ? JSON.parse(savedTests)
-      : {};
+    const savedBooks = booksResult.data ?? [];
+    const savedReading = readingResult.data ?? [];
 
-    const creativeMap: Record<string, CreativeResult> = savedCreative
-      ? JSON.parse(savedCreative)
-      : {};
+    if (savedReading.length > 0) {
+      const currentProgress = savedReading[0];
 
-    const reviewMap: Record<string, ReviewResult> = savedReviews
-      ? JSON.parse(savedReviews)
-      : {};
-
-    let historyList: Book[] = savedHistory
-      ? JSON.parse(savedHistory)
-      : [];
-
-    const oldStatus = localStorage.getItem("smartOqyrmanReadingStatus");
-
-    if (
-      currentBook &&
-      !readingMap[currentBook.title] &&
-      (oldStatus === "not-started" ||
-        oldStatus === "reading" ||
-        oldStatus === "finished")
-    ) {
-      readingMap[currentBook.title] = {
-        bookId: currentBook.id,
-        book: currentBook.title,
-        author: currentBook.author,
-        status: oldStatus,
-        score: oldStatus === "finished" ? 20 : 0,
-        completed: oldStatus === "finished",
-      };
-
-      localStorage.setItem(
-        "smartOqyrmanReadingResults",
-        JSON.stringify(readingMap)
+      const currentBook = savedBooks.find(
+        (book) => book.id === currentProgress.book_id
       );
-    }
 
-    localStorage.removeItem("smartOqyrmanReadingStatus");
+      if (currentBook) {
+        localStorage.setItem(
+          "smartOqyrmanCurrentBook",
+          JSON.stringify(currentBook)
+        );
+      }
 
-    if (
-      currentBook &&
-      !historyList.some((item) => item.title === currentBook.title)
-    ) {
-      historyList.push(currentBook);
+      const history = savedReading
+        .map((item) =>
+          savedBooks.find(
+            (book) => book.id === item.book_id
+          )
+        )
+        .filter(Boolean);
 
       localStorage.setItem(
         "smartOqyrmanBookHistory",
-        JSON.stringify(historyList)
+        JSON.stringify(history)
+      );
+
+      const readingResults: Record<
+        string,
+        {
+          status: string;
+          score: number;
+        }
+      > = {};
+
+      savedReading.forEach((item) => {
+        const book = savedBooks.find(
+          (itemBook) =>
+            itemBook.id === item.book_id
+        );
+
+        if (book) {
+          readingResults[book.title] = {
+            status: item.status,
+            score: item.reading_score,
+          };
+        }
+      });
+
+      localStorage.setItem(
+        "smartOqyrmanReadingResults",
+        JSON.stringify(readingResults)
       );
     }
 
-    setReadingResults(readingMap);
-    setTestResults(testMap);
-    setCreativeResults(creativeMap);
-    setReviewResults(reviewMap);
-    setHistory(historyList);
-  }, []);
-
-  function updateReadingStatus(
-    newStatus: "reading" | "finished"
-  ) {
-    if (!book) return;
-
-    const updated = {
-      ...readingResults,
-      [book.title]: {
-        bookId: book.id,
-        book: book.title,
-        author: book.author,
-        status: newStatus,
-        score: newStatus === "finished" ? 20 : 0,
-        completed: newStatus === "finished",
-      } as ReadingResult,
-    };
-
-    setReadingResults(updated);
-
-    localStorage.setItem(
-      "smartOqyrmanReadingResults",
-      JSON.stringify(updated)
-    );
+    setLoading(false);
   }
 
-  function openHistoryBook(historyBook: Book) {
-    localStorage.setItem(
-      "smartOqyrmanCurrentBook",
-      JSON.stringify(historyBook)
-    );
+  const results = useMemo<BookResult[]>(() => {
+    return reading
+      .map((readingItem) => {
+        const book = books.find(
+          (item) => item.id === readingItem.book_id
+        );
 
-    window.location.reload();
+        if (!book) {
+          return null;
+        }
+
+        const testScore =
+          tests.find(
+            (item) =>
+              item.book_id === readingItem.book_id
+          )?.score ?? 0;
+
+        const creativeScore =
+          creative.find(
+            (item) =>
+              item.book_id === readingItem.book_id
+          )?.score ?? 0;
+
+        const reviewScore =
+          reviews.find(
+            (item) =>
+              item.book_id === readingItem.book_id
+          )?.score ?? 0;
+
+        const totalScore =
+          readingItem.reading_score +
+          testScore +
+          creativeScore +
+          reviewScore;
+
+        return {
+          book,
+          status: readingItem.status,
+          readingScore: readingItem.reading_score,
+          testScore,
+          creativeScore,
+          reviewScore,
+          totalScore,
+        };
+      })
+      .filter(
+        (item): item is BookResult =>
+          item !== null
+      );
+  }, [books, reading, tests, creative, reviews]);
+
+  const totalPoints = results.reduce(
+    (sum, item) => sum + item.totalScore,
+    0
+  );
+
+  const booksRead = results.filter(
+    (item) => item.status === "finished"
+  ).length;
+
+  const perfectBooks = results.filter(
+    (item) => item.totalScore === 100
+  ).length;
+
+  const currentResult =
+    results.length > 0 ? results[0] : null;
+
+  async function finishReading(bookId: number) {
+    setFinishingBook(bookId);
+
+    const supabase = createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      setFinishingBook(null);
+      window.location.href = "/login";
+      return;
+    }
+
+    const now = new Date().toISOString();
+
+    const { error } = await supabase
+      .from("reading_progress")
+      .update({
+        status: "finished",
+        reading_score: 20,
+        finished_at: now,
+        updated_at: now,
+      })
+      .eq("student_id", user.id)
+      .eq("book_id", bookId);
+
+    if (error) {
+      console.error(error);
+      setFinishingBook(null);
+
+      alert(
+        "Оқу нәтижесін сақтау кезінде қате шықты."
+      );
+
+      return;
+    }
+
+    setFinishingBook(null);
+
+    await loadProfile();
   }
 
-  if (!student) {
+  async function logout() {
+    const supabase = createClient();
+
+    await supabase.auth.signOut();
+
+    localStorage.removeItem(
+      "smartOqyrmanStudent"
+    );
+
+    localStorage.removeItem(
+      "smartOqyrmanActiveStudentId"
+    );
+
+    window.location.href = "/login";
+  }
+
+  if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
-        <div className="rounded-3xl bg-white p-8 text-center shadow-lg">
-          <h1 className="text-3xl font-extrabold text-indigo-700">
-            SMART OQYRMAN
-          </h1>
-
-          <p className="mt-4 text-slate-500">
-            Алдымен платформаға тіркеліңіз.
-          </p>
-
-          <a
-            href="/register"
-            className="mt-6 inline-block rounded-xl bg-indigo-600 px-6 py-3 font-bold text-white"
-          >
-            Тіркелу
-          </a>
+      <main className="min-h-screen bg-slate-50 px-5 py-20">
+        <div className="text-center text-lg font-bold text-slate-500">
+          Жеке кабинет жүктелуде...
         </div>
       </main>
     );
   }
 
-  const currentReading =
-    book ? readingResults[book.title] : null;
-
-  const currentStatus =
-    currentReading?.status || "not-started";
-
-  const currentTest =
-    book ? testResults[book.title] : null;
-
-  const currentCreative =
-    book ? creativeResults[book.title] : null;
-
-  const currentReview =
-    book ? reviewResults[book.title] : null;
-
-  const readingScore =
-    currentStatus === "finished" ? 20 : 0;
-
-  const testScore =
-    currentTest?.score || 0;
-
-  const creativeScore =
-    currentCreative?.score || 0;
-
-  const reviewScore =
-    currentReview?.score || 0;
-
-  const currentTotal =
-    readingScore +
-    testScore +
-    creativeScore +
-    reviewScore;
-
-  function getBookTotal(historyBook: Book) {
-    const read =
-      readingResults[historyBook.title]?.status === "finished"
-        ? 20
-        : 0;
-
-    const test =
-      testResults[historyBook.title]?.score || 0;
-
-    const creative =
-      creativeResults[historyBook.title]?.score || 0;
-
-    const review =
-      reviewResults[historyBook.title]?.score || 0;
-
-    return read + test + creative + review;
+  if (!profile) {
+    return null;
   }
-
-  const finishedBookCount = history.filter(
-    (item) =>
-      readingResults[item.title]?.status === "finished"
-  ).length;
-
-  const allPoints = history.reduce(
-    (sum, item) => sum + getBookTotal(item),
-    0
-  );
-
-  const perfectResults = history.filter(
-    (item) => getBookTotal(item) === 100
-  ).length;
 
   return (
     <main className="min-h-screen bg-slate-50 px-5 py-8">
       <div className="mx-auto max-w-6xl">
 
-        {/* HEADER */}
-        <header className="rounded-3xl bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <header className="flex flex-col gap-4 rounded-3xl bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
 
-            <div>
-              <h1 className="text-3xl font-extrabold text-indigo-700">
-                SMART OQYRMAN
-              </h1>
+          <div>
+            <a
+              href="/"
+              className="text-2xl font-extrabold text-indigo-700"
+            >
+              SMART OQYRMAN
+            </a>
 
-              <p className="mt-2 text-slate-500">
-                Менің жеке кабинетім
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-
-              <a
-                href="/"
-                className="rounded-xl bg-slate-100 px-5 py-3 font-semibold text-slate-700"
-              >
-                Басты бет
-              </a>
-
-              <a
-                href="/books"
-                className="rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white"
-              >
-                📚 Кітап таңдау
-              </a>
-
-              <a
-                href="/ranking"
-                className="rounded-xl bg-amber-500 px-5 py-3 font-semibold text-white"
-              >
-                🏆 Рейтинг
-              </a>
-
-            </div>
-
+            <p className="mt-1 text-sm text-slate-500">
+              Кітап оқы. Ойлан. Талда. Дамы.
+            </p>
           </div>
+
+          <button
+            onClick={logout}
+            className="rounded-xl bg-slate-100 px-5 py-3 font-bold text-slate-700"
+          >
+            Шығу
+          </button>
+
         </header>
 
-        {/* STUDENT */}
-        <section className="mt-6 rounded-3xl bg-gradient-to-r from-indigo-600 to-violet-600 p-8 text-white">
+        <section className="mt-6 rounded-3xl bg-gradient-to-br from-indigo-600 to-violet-600 p-7 text-white shadow-lg">
 
-          <p className="text-sm font-bold uppercase tracking-widest text-indigo-200">
-            Оқушы
+          <p className="text-sm font-bold text-indigo-100">
+            👤 ОҚУШЫНЫҢ ЖЕКЕ КАБИНЕТІ
           </p>
 
-          <h2 className="mt-2 text-3xl font-extrabold">
-            {student.name}
-          </h2>
+          <h1 className="mt-2 text-3xl font-extrabold">
+            {profile.full_name}
+          </h1>
 
-          <div className="mt-4 flex flex-wrap gap-3">
+          <div className="mt-4 flex flex-wrap gap-3 text-sm">
 
-            <span className="rounded-full bg-white/20 px-4 py-2">
-              {student.grade}
+            {profile.grade && (
+              <span className="rounded-full bg-white/15 px-4 py-2">
+                {profile.grade}-сынып
+              </span>
+            )}
+
+            <span className="rounded-full bg-white/15 px-4 py-2">
+              🏫 {profile.school}
             </span>
 
-            <span className="rounded-full bg-white/20 px-4 py-2">
-              {student.school}
-            </span>
-
-            <span className="rounded-full bg-white/20 px-4 py-2">
-              2026–2027 оқу жылы
+            <span className="rounded-full bg-white/15 px-4 py-2">
+              @{profile.login}
             </span>
 
           </div>
 
         </section>
 
-        {/* STATS */}
         <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+          <div className="rounded-3xl bg-white p-6 shadow-sm">
+            <p className="text-sm text-slate-500">
+              Жалпы ұпай
+            </p>
+            <p className="mt-2 text-3xl font-extrabold text-indigo-700">
+              {totalPoints}
+            </p>
+          </div>
 
           <div className="rounded-3xl bg-white p-6 shadow-sm">
             <p className="text-sm text-slate-500">
               Оқылған кітап
             </p>
-            <p className="mt-2 text-3xl font-extrabold text-indigo-600">
-              {finishedBookCount}
+            <p className="mt-2 text-3xl font-extrabold text-slate-900">
+              {booksRead}
             </p>
           </div>
 
           <div className="rounded-3xl bg-white p-6 shadow-sm">
             <p className="text-sm text-slate-500">
-              Жалпы жиналған ұпай
+              Таңдалған кітап
             </p>
-            <p className="mt-2 text-3xl font-extrabold text-emerald-600">
-              {allPoints}
-            </p>
-          </div>
-
-          <div className="rounded-3xl bg-white p-6 shadow-sm">
-            <p className="text-sm text-slate-500">
-              Оқу тарихы
-            </p>
-            <p className="mt-2 text-3xl font-extrabold text-amber-500">
-              {history.length}
+            <p className="mt-2 text-3xl font-extrabold text-slate-900">
+              {results.length}
             </p>
           </div>
 
@@ -398,393 +423,221 @@ export default function ProfilePage() {
             <p className="text-sm text-slate-500">
               100 ұпайлық нәтиже
             </p>
-            <p className="mt-2 text-3xl font-extrabold text-violet-600">
-              {perfectResults}
+            <p className="mt-2 text-3xl font-extrabold text-amber-500">
+              {perfectBooks}
             </p>
           </div>
 
         </section>
 
-        {/* CURRENT BOOK */}
-        <section className="mt-8 rounded-3xl bg-white p-7 shadow-sm">
+        {currentResult ? (
+          <section className="mt-6 rounded-3xl bg-white p-7 shadow-sm">
 
-          <p className="text-sm font-bold uppercase tracking-widest text-indigo-600">
-            Қазіргі кітап
-          </p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 
-          {!book ? (
-            <>
-              <h2 className="mt-3 text-2xl font-extrabold text-slate-800">
-                Әзірге кітап таңдалған жоқ
-              </h2>
-
-              <a
-                href="/books"
-                className="mt-5 inline-block rounded-xl bg-indigo-600 px-6 py-3 font-bold text-white"
-              >
-                Кітап таңдау →
-              </a>
-            </>
-          ) : (
-            <>
-              <div className="mt-4 rounded-3xl bg-indigo-50 p-6">
-
+              <div>
                 <p className="text-sm font-bold text-indigo-600">
-                  📖 Таңдалған кітап
+                  ҚАЗІРГІ КІТАП
                 </p>
 
-                <h2 className="mt-2 text-3xl font-extrabold text-slate-800">
-                  «{book.title}»
+                <h2 className="mt-2 text-2xl font-extrabold text-slate-900">
+                  {currentResult.book.title}
                 </h2>
 
-                <p className="mt-2 text-lg text-slate-600">
-                  {book.author}
-                </p>
-
-                <p className="mt-4 font-semibold text-slate-600">
-                  🏫 Мектеп кітапханасынан алынады
-                </p>
-
-              </div>
-
-              <div className="mt-6">
-
-                {currentStatus === "not-started" && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      updateReadingStatus("reading")
-                    }
-                    className="w-full rounded-xl bg-indigo-600 px-6 py-4 font-bold text-white"
-                  >
-                    📖 Оқуды бастадым
-                  </button>
-                )}
-
-                {currentStatus === "reading" && (
-                  <>
-                    <div className="rounded-2xl bg-amber-50 p-5">
-                      <p className="font-bold text-amber-700">
-                        📚 Оқу жүріп жатыр
-                      </p>
-
-                      <p className="mt-2 text-slate-600">
-                        Кітапты оқып болған соң төмендегі батырманы бас.
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateReadingStatus("finished")
-                      }
-                      className="mt-4 w-full rounded-xl bg-emerald-600 px-6 py-4 font-bold text-white"
-                    >
-                      ✅ Кітапты оқып бітірдім
-                    </button>
-                  </>
-                )}
-
-                {currentStatus === "finished" && (
-                  <div className="rounded-2xl bg-emerald-50 p-5">
-                    <p className="text-lg font-bold text-emerald-700">
-                      ✅ Кітап оқылды
-                    </p>
-
-                    <p className="mt-2 text-slate-600">
-                      Кітап оқу кезеңінен 20 ұпай алдың.
-                    </p>
-                  </div>
-                )}
-
-              </div>
-            </>
-          )}
-
-        </section>
-
-        {/* RESULTS */}
-        {book && currentStatus === "finished" && (
-          <section className="mt-8">
-
-            <h2 className="text-3xl font-extrabold text-slate-800">
-              Осы кітаптың нәтижесі
-            </h2>
-
-            <div className="mt-6 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-
-              <div className="rounded-3xl bg-white p-6 shadow-sm">
-                <div className="text-4xl">📖</div>
-                <h3 className="mt-4 text-xl font-extrabold">
-                  Кітап оқу
-                </h3>
-                <p className="mt-4 text-3xl font-extrabold text-emerald-600">
-                  20 / 20
-                </p>
-                <p className="mt-2 font-semibold text-emerald-600">
-                  ✓ Аяқталды
+                <p className="mt-1 text-slate-500">
+                  {currentResult.book.author}
                 </p>
               </div>
 
-              <div className="rounded-3xl bg-white p-6 shadow-sm">
-                <div className="text-4xl">✅</div>
-                <h3 className="mt-4 text-xl font-extrabold">
-                  Тест
-                </h3>
+              <span className="rounded-full bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700">
+                {currentResult.totalScore} / 100 ұпай
+              </span>
 
-                {currentTest ? (
-                  <>
-                    <p className="mt-4 text-3xl font-extrabold text-emerald-600">
-                      {currentTest.score} / 50
-                    </p>
+            </div>
 
-                    <p className="mt-2 text-sm text-slate-500">
-                      Дұрыс жауап: {currentTest.correctAnswers} / 5
-                    </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-4">
 
-                    <a
-                      href="/test"
-                      className="mt-5 inline-block w-full rounded-xl bg-slate-100 px-5 py-3 text-center font-bold text-slate-700"
-                    >
-                      Қайта тапсыру
-                    </a>
-                  </>
-                ) : (
-                  <>
-                    <p className="mt-4 text-3xl font-extrabold text-slate-300">
-                      0 / 50
-                    </p>
-
-                    <a
-                      href="/test"
-                      className="mt-5 inline-block w-full rounded-xl bg-emerald-600 px-5 py-3 text-center font-bold text-white"
-                    >
-                      Тестті бастау →
-                    </a>
-                  </>
-                )}
-
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-sm text-slate-500">
+                  📖 Оқу
+                </p>
+                <p className="mt-1 text-xl font-extrabold">
+                  {currentResult.readingScore}/20
+                </p>
               </div>
 
-              <div className="rounded-3xl bg-white p-6 shadow-sm">
-                <div className="text-4xl">🎨</div>
-                <h3 className="mt-4 text-xl font-extrabold">
-                  Шығармашылық
-                </h3>
-
-                {currentCreative ? (
-                  <>
-                    <p className="mt-4 text-3xl font-extrabold text-emerald-600">
-                      {currentCreative.score} / 10
-                    </p>
-
-                    <p className="mt-2 text-sm text-slate-500">
-                      {currentCreative.taskTitle}
-                    </p>
-
-                    <a
-                      href="/creative"
-                      className="mt-5 inline-block w-full rounded-xl bg-slate-100 px-5 py-3 text-center font-bold text-slate-700"
-                    >
-                      Жұмысты көру →
-                    </a>
-                  </>
-                ) : (
-                  <>
-                    <p className="mt-4 text-3xl font-extrabold text-slate-300">
-                      0 / 10
-                    </p>
-
-                    <a
-                      href="/creative"
-                      className="mt-5 inline-block w-full rounded-xl bg-amber-500 px-5 py-3 text-center font-bold text-white"
-                    >
-                      Тапсырманы орындау →
-                    </a>
-                  </>
-                )}
-
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-sm text-slate-500">
+                  📝 Тест
+                </p>
+                <p className="mt-1 text-xl font-extrabold">
+                  {currentResult.testScore}/50
+                </p>
               </div>
 
-              <div className="rounded-3xl bg-white p-6 shadow-sm">
-                <div className="text-4xl">💬</div>
-                <h3 className="mt-4 text-xl font-extrabold">
-                  Пікір
-                </h3>
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-sm text-slate-500">
+                  🎨 Шығармашылық
+                </p>
+                <p className="mt-1 text-xl font-extrabold">
+                  {currentResult.creativeScore}/10
+                </p>
+              </div>
 
-                {currentReview ? (
-                  <>
-                    <p className="mt-4 text-3xl font-extrabold text-emerald-600">
-                      {currentReview.score} / 20
-                    </p>
-
-                    <p className="mt-2 font-semibold text-emerald-600">
-                      ✓ Пікір жазылды
-                    </p>
-
-                    <a
-                      href="/review"
-                      className="mt-5 inline-block w-full rounded-xl bg-slate-100 px-5 py-3 text-center font-bold text-slate-700"
-                    >
-                      Пікірді көру →
-                    </a>
-                  </>
-                ) : (
-                  <>
-                    <p className="mt-4 text-3xl font-extrabold text-slate-300">
-                      0 / 20
-                    </p>
-
-                    <a
-                      href="/review"
-                      className="mt-5 inline-block w-full rounded-xl bg-violet-600 px-5 py-3 text-center font-bold text-white"
-                    >
-                      Пікір жазу →
-                    </a>
-                  </>
-                )}
-
+              <div className="rounded-2xl bg-slate-50 p-4">
+                <p className="text-sm text-slate-500">
+                  💬 Пікір
+                </p>
+                <p className="mt-1 text-xl font-extrabold">
+                  {currentResult.reviewScore}/20
+                </p>
               </div>
 
             </div>
 
-            <div className="mt-7 rounded-3xl bg-slate-900 p-7 text-white">
-
-              <p className="text-center text-sm font-bold uppercase tracking-widest text-slate-400">
-                Осы кітап бойынша жалпы нәтиже
-              </p>
-
-              <p className="mt-3 text-center text-5xl font-extrabold">
-                {currentTotal} / 100
-              </p>
-
-              <div className="mt-6 h-4 overflow-hidden rounded-full bg-white/20">
-                <div
-                  className="h-full rounded-full bg-emerald-500"
-                  style={{
-                    width: `${currentTotal}%`,
-                  }}
-                />
+            {currentResult.status !== "finished" ? (
+              <button
+                onClick={() =>
+                  finishReading(currentResult.book.id)
+                }
+                disabled={
+                  finishingBook ===
+                  currentResult.book.id
+                }
+                className="mt-6 w-full rounded-xl bg-emerald-600 px-6 py-4 font-extrabold text-white hover:bg-emerald-700 disabled:opacity-60"
+              >
+                {finishingBook ===
+                currentResult.book.id
+                  ? "Сақталуда..."
+                  : "✅ Кітапты оқып болдым +20 ұпай"}
+              </button>
+            ) : (
+              <div className="mt-6 rounded-xl bg-emerald-50 px-5 py-4 text-center font-bold text-emerald-700">
+                ✅ Кітап оқылып аяқталды — 20/20 ұпай
               </div>
+            )}
 
-              <p className="mt-4 text-center text-slate-300">
-                📖 {readingScore} + ✅ {testScore} + 🎨 {creativeScore} + 💬 {reviewScore}
-              </p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
 
+              <a
+                href="/test"
+                className="rounded-xl bg-indigo-600 px-5 py-4 text-center font-bold text-white"
+              >
+                📝 Тест тапсыру
+              </a>
+
+              <a
+                href="/creative"
+                className="rounded-xl bg-violet-600 px-5 py-4 text-center font-bold text-white"
+              >
+                🎨 Шығармашылық
+              </a>
+
+              <a
+                href="/review"
+                className="rounded-xl bg-amber-500 px-5 py-4 text-center font-bold text-white"
+              >
+                💬 Пікір жазу
+              </a>
+
+            </div>
+
+          </section>
+        ) : (
+          <section className="mt-6 rounded-3xl bg-white p-10 text-center shadow-sm">
+
+            <div className="text-5xl">
+              📚
+            </div>
+
+            <h2 className="mt-4 text-2xl font-extrabold text-slate-900">
+              Әлі кітап таңдалмаған
+            </h2>
+
+            <p className="mt-2 text-slate-500">
+              Алдымен кітаптар тізімінен бір кітап таңдаңыз.
+            </p>
+
+            <a
+              href="/books"
+              className="mt-6 inline-block rounded-xl bg-indigo-600 px-6 py-4 font-bold text-white"
+            >
+              Кітап таңдау →
+            </a>
+
+          </section>
+        )}
+
+        {results.length > 0 && (
+          <section className="mt-6">
+
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-extrabold text-slate-900">
+                📚 Оқу тарихым
+              </h2>
+
+              <a
+                href="/books"
+                className="font-bold text-indigo-600"
+              >
+                + Кітап таңдау
+              </a>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              {results.map((item) => (
+                <article
+                  key={item.book.id}
+                  className="rounded-3xl bg-white p-6 shadow-sm"
+                >
+
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
+                    <div>
+                      <h3 className="text-lg font-extrabold text-slate-900">
+                        {item.book.title}
+                      </h3>
+
+                      <p className="mt-1 text-sm text-slate-500">
+                        {item.book.author}
+                      </p>
+                    </div>
+
+                    <div className="text-left sm:text-right">
+                      <p className="text-2xl font-extrabold text-indigo-700">
+                        {item.totalScore}/100
+                      </p>
+
+                      <p className="text-sm text-slate-500">
+                        {item.status === "finished"
+                          ? "✅ Оқылып болды"
+                          : "📖 Оқылып жатыр"}
+                      </p>
+                    </div>
+
+                  </div>
+
+                </article>
+              ))}
             </div>
 
           </section>
         )}
 
-        {/* HISTORY */}
-        <section className="mt-12">
+        <section className="mt-8 grid gap-4 sm:grid-cols-2">
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-
-            <div>
-              <p className="text-sm font-bold uppercase tracking-widest text-indigo-600">
-                2026–2027
-              </p>
-
-              <h2 className="mt-2 text-3xl font-extrabold text-slate-800">
-                📚 Менің оқу тарихым
-              </h2>
-            </div>
-
-            <a
-              href="/books"
-              className="rounded-xl bg-indigo-600 px-5 py-3 text-center font-bold text-white"
-            >
-              + Жаңа кітап таңдау
-            </a>
-
-          </div>
-
-          <div className="mt-6 space-y-4">
-
-            {history.map((historyBook, index) => {
-              const total = getBookTotal(historyBook);
-
-              const isCurrent =
-                book?.title === historyBook.title;
-
-              return (
-                <div
-                  key={historyBook.title}
-                  className={`rounded-3xl border-2 bg-white p-6 shadow-sm ${
-                    isCurrent
-                      ? "border-indigo-300"
-                      : "border-transparent"
-                  }`}
-                >
-
-                  <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-
-                    <div>
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-bold text-slate-500">
-                        #{index + 1}
-                      </span>
-
-                      <h3 className="mt-3 text-2xl font-extrabold text-slate-800">
-                        «{historyBook.title}»
-                      </h3>
-
-                      <p className="mt-1 text-slate-500">
-                        {historyBook.author}
-                      </p>
-                    </div>
-
-                    <div className="min-w-36 text-center">
-
-                      <p className="text-3xl font-extrabold text-emerald-600">
-                        {total}/100
-                      </p>
-
-                      {!isCurrent && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openHistoryBook(historyBook)
-                          }
-                          className="mt-3 w-full rounded-xl bg-indigo-600 px-4 py-2 font-bold text-white"
-                        >
-                          Ашып көру
-                        </button>
-                      )}
-
-                    </div>
-
-                  </div>
-
-                </div>
-              );
-            })}
-
-          </div>
-
-        </section>
-
-        {/* RANKING CTA */}
-        <section className="mt-10 rounded-3xl bg-gradient-to-r from-amber-400 to-orange-500 p-8 text-center text-white">
-
-          <div className="text-5xl">
-            🏆
-          </div>
-
-          <h2 className="mt-3 text-3xl font-extrabold">
-            Оқушылар рейтингі
-          </h2>
-
-          <p className="mx-auto mt-3 max-w-xl text-amber-50">
-            Жинаған ұпайыңды, оқылған кітаптарыңды және ашылған
-            жетістіктеріңді көр.
-          </p>
+          <a
+            href="/books"
+            className="rounded-2xl bg-indigo-600 px-6 py-4 text-center font-extrabold text-white"
+          >
+            📚 Кітаптар
+          </a>
 
           <a
             href="/ranking"
-            className="mt-6 inline-block rounded-xl bg-white px-7 py-4 font-extrabold text-orange-600"
+            className="rounded-2xl bg-amber-500 px-6 py-4 text-center font-extrabold text-white"
           >
-            Рейтингті көру →
+            🏆 Рейтинг
           </a>
 
         </section>

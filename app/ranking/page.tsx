@@ -1,579 +1,423 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createClient } from "../../utils/supabase/client";
 
-type Student = {
-  name: string;
-  grade: string;
+type RankingRow = {
+  student_id: string;
+  display_name: string;
+  grade: number | null;
   school: string;
-  login: string;
-};
-
-type Book = {
-  id: number;
-  title: string;
-  author: string;
-};
-
-type RankingEntry = {
-  id: string;
-  name: string;
-  grade: string;
-  school: string;
-  totalPoints: number;
-  booksRead: number;
-  perfectBooks: number;
+  books_read: number;
+  total_points: number;
+  perfect_books: number;
 };
 
 export default function RankingPage() {
-  const [student, setStudent] = useState<Student | null>(null);
-  const [ranking, setRanking] = useState<RankingEntry[]>([]);
-  const [myResult, setMyResult] = useState<RankingEntry | null>(null);
+  const [ranking, setRanking] = useState<RankingRow[]>([]);
+  const [currentUserId, setCurrentUserId] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-    const savedStudent = localStorage.getItem(
-      "smartOqyrmanStudent"
-    );
+    loadRanking();
+  }, []);
 
-    if (!savedStudent) {
+  async function loadRanking() {
+    const supabase = createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      window.location.href = "/login";
       return;
     }
 
-    const currentStudent: Student =
-      JSON.parse(savedStudent);
+    setCurrentUserId(user.id);
 
-    setStudent(currentStudent);
-
-    const history: Book[] = JSON.parse(
-      localStorage.getItem(
-        "smartOqyrmanBookHistory"
-      ) || "[]"
+    const { data, error } = await supabase.rpc(
+      "get_public_ranking"
     );
 
-    const readingResults = JSON.parse(
-      localStorage.getItem(
-        "smartOqyrmanReadingResults"
-      ) || "{}"
-    );
+    if (error) {
+      console.error(error);
 
-    const testResults = JSON.parse(
-      localStorage.getItem(
-        "smartOqyrmanTestResults"
-      ) || "{}"
-    );
-
-    const creativeResults = JSON.parse(
-      localStorage.getItem(
-        "smartOqyrmanCreativeResults"
-      ) || "{}"
-    );
-
-    const reviewResults = JSON.parse(
-      localStorage.getItem(
-        "smartOqyrmanReviewResults"
-      ) || "{}"
-    );
-
-    function getBookTotal(book: Book) {
-      const reading =
-        readingResults[book.title]?.status ===
-        "finished"
-          ? 20
-          : 0;
-
-      const test =
-        testResults[book.title]?.score || 0;
-
-      const creative =
-        creativeResults[book.title]?.score || 0;
-
-      const review =
-        reviewResults[book.title]?.score || 0;
-
-      return (
-        reading +
-        test +
-        creative +
-        review
+      setErrorMessage(
+        "Рейтингті жүктеу кезінде қате шықты."
       );
+
+      setLoading(false);
+      return;
     }
 
-    const booksRead = history.filter(
-      (book) =>
-        readingResults[book.title]?.status ===
-        "finished"
-    ).length;
-
-    const totalPoints = history.reduce(
-      (sum, book) =>
-        sum + getBookTotal(book),
-      0
+    const normalized: RankingRow[] = (data ?? []).map(
+      (row: {
+        student_id: string;
+        display_name: string;
+        grade: number | null;
+        school: string;
+        books_read: number | string | null;
+        total_points: number | string | null;
+        perfect_books: number | string | null;
+      }) => ({
+        student_id: row.student_id,
+        display_name: row.display_name,
+        grade: row.grade,
+        school: row.school,
+        books_read: Number(row.books_read ?? 0),
+        total_points: Number(row.total_points ?? 0),
+        perfect_books: Number(row.perfect_books ?? 0),
+      })
     );
 
-    const perfectBooks = history.filter(
-      (book) =>
-        getBookTotal(book) === 100
-    ).length;
+    setRanking(normalized);
+    setLoading(false);
+  }
 
-    const currentEntry: RankingEntry = {
-      id:
-        currentStudent.login ||
-        `${currentStudent.name}-${currentStudent.grade}`,
-      name: currentStudent.name,
-      grade: currentStudent.grade,
-      school: currentStudent.school,
-      totalPoints,
-      booksRead,
-      perfectBooks,
-    };
+  const currentStudent = useMemo(() => {
+    return ranking.find(
+      (student) =>
+        student.student_id === currentUserId
+    );
+  }, [ranking, currentUserId]);
 
-    setMyResult(currentEntry);
-
-    const oldRanking: RankingEntry[] =
-      JSON.parse(
-        localStorage.getItem(
-          "smartOqyrmanRanking"
-        ) || "[]"
-      );
-
-    const withoutCurrent =
-      oldRanking.filter(
-        (item) =>
-          item.id !== currentEntry.id
-      );
-
-    const updatedRanking = [
-      ...withoutCurrent,
-      currentEntry,
-    ].sort(
-      (a, b) =>
-        b.totalPoints - a.totalPoints
+  const currentPosition = useMemo(() => {
+    const index = ranking.findIndex(
+      (student) =>
+        student.student_id === currentUserId
     );
 
-    localStorage.setItem(
-      "smartOqyrmanRanking",
-      JSON.stringify(updatedRanking)
-    );
+    return index >= 0 ? index + 1 : null;
+  }, [ranking, currentUserId]);
 
-    setRanking(updatedRanking);
-  }, []);
+  function getMedal(position: number) {
+    if (position === 1) return "🥇";
+    if (position === 2) return "🥈";
+    if (position === 3) return "🥉";
 
-  if (!student || !myResult) {
+    return `${position}`;
+  }
+
+  function getAchievements(student: RankingRow) {
+    const achievements: string[] = [];
+
+    if (student.books_read >= 1) {
+      achievements.push("📖 Алғашқы кітап");
+    }
+
+    if (student.books_read >= 3) {
+      achievements.push("📚 3 кітап");
+    }
+
+    if (student.books_read >= 5) {
+      achievements.push("🌟 5 кітап");
+    }
+
+    if (student.perfect_books >= 1) {
+      achievements.push("💯 100 ұпай");
+    }
+
+    if (student.total_points >= 300) {
+      achievements.push("🏅 300 ұпай");
+    }
+
+    if (student.total_points >= 500) {
+      achievements.push("🏆 500 ұпай");
+    }
+
+    return achievements;
+  }
+
+  if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
-        <div className="rounded-3xl bg-white p-8 text-center shadow-lg">
-
-          <h1 className="text-3xl font-extrabold text-indigo-700">
-            SMART OQYRMAN
-          </h1>
-
-          <p className="mt-4 text-slate-500">
-            Рейтингті көру үшін алдымен тіркеліңіз.
-          </p>
-
-          <a
-            href="/register"
-            className="mt-6 inline-block rounded-xl bg-indigo-600 px-6 py-3 font-bold text-white"
-          >
-            Тіркелу
-          </a>
-
-        </div>
+      <main className="min-h-screen bg-slate-50 px-5 py-20">
+        <p className="text-center text-lg font-bold text-slate-500">
+          Рейтинг жүктелуде...
+        </p>
       </main>
     );
   }
 
-  const myPlace =
-    ranking.findIndex(
-      (item) => item.id === myResult.id
-    ) + 1;
-
-  const achievements = [
-    {
-      icon: "📖",
-      title: "Алғашқы қадам",
-      description:
-        "Алғашқы кітапты оқып аяқта",
-      unlocked:
-        myResult.booksRead >= 1,
-    },
-    {
-      icon: "⭐",
-      title: "Белсенді оқырман",
-      description:
-        "3 кітап оқып аяқта",
-      unlocked:
-        myResult.booksRead >= 3,
-    },
-    {
-      icon: "📚",
-      title: "Кітапқұмар",
-      description:
-        "5 кітап оқып аяқта",
-      unlocked:
-        myResult.booksRead >= 5,
-    },
-    {
-      icon: "🏆",
-      title: "Үздік нәтиже",
-      description:
-        "Бір кітаптан 100 ұпай жина",
-      unlocked:
-        myResult.perfectBooks >= 1,
-    },
-    {
-      icon: "💯",
-      title: "Ұпай жинаушы",
-      description:
-        "Жалпы 300 ұпай жина",
-      unlocked:
-        myResult.totalPoints >= 300,
-    },
-    {
-      icon: "👑",
-      title: "SMART OQYRMAN шебері",
-      description:
-        "Жалпы 500 ұпай жина",
-      unlocked:
-        myResult.totalPoints >= 500,
-    },
-  ];
-
-  const unlockedCount =
-    achievements.filter(
-      (item) => item.unlocked
-    ).length;
-
   return (
     <main className="min-h-screen bg-slate-50 px-5 py-8">
-
       <div className="mx-auto max-w-6xl">
 
-        {/* HEADER */}
         <header className="rounded-3xl bg-white p-6 shadow-sm">
-
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
             <div>
-              <h1 className="text-3xl font-extrabold text-indigo-700">
-                SMART OQYRMAN
-              </h1>
-
-              <p className="mt-2 text-slate-500">
-                Рейтинг және жетістіктер
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
-
               <a
                 href="/"
-                className="rounded-xl bg-slate-100 px-5 py-3 font-semibold text-slate-700"
+                className="text-3xl font-extrabold text-indigo-700"
               >
-                Басты бет
+                SMART OQYRMAN
               </a>
 
-              <a
-                href="/profile"
-                className="rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white"
-              >
-                Жеке кабинет
-              </a>
-
+              <p className="mt-2 text-slate-500">
+                Кітап оқы. Ойлан. Талда. Дамы.
+              </p>
             </div>
 
-          </div>
+            <a
+              href="/profile"
+              className="rounded-xl bg-indigo-50 px-5 py-3 text-center font-bold text-indigo-700"
+            >
+              ← Жеке кабинет
+            </a>
 
+          </div>
         </header>
 
-        {/* MY RESULT */}
-        <section className="mt-6 rounded-3xl bg-gradient-to-r from-indigo-600 to-violet-600 p-8 text-white">
+        <section className="mt-6 rounded-3xl bg-gradient-to-br from-amber-500 to-orange-500 p-8 text-white shadow-lg">
 
-          <p className="text-sm font-bold uppercase tracking-widest text-indigo-200">
-            Менің нәтижем
-          </p>
-
-          <h2 className="mt-2 text-3xl font-extrabold">
-            {myResult.name}
-          </h2>
-
-          <p className="mt-2 text-indigo-100">
-            {myResult.grade} · {myResult.school}
-          </p>
-
-          <div className="mt-7 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-
-            <div className="rounded-2xl bg-white/10 p-5">
-              <p className="text-sm text-indigo-100">
-                Рейтингтегі орын
-              </p>
-
-              <p className="mt-2 text-4xl font-extrabold">
-                № {myPlace}
-              </p>
-            </div>
-
-            <div className="rounded-2xl bg-white/10 p-5">
-              <p className="text-sm text-indigo-100">
-                Жалпы ұпай
-              </p>
-
-              <p className="mt-2 text-4xl font-extrabold">
-                {myResult.totalPoints}
-              </p>
-            </div>
-
-            <div className="rounded-2xl bg-white/10 p-5">
-              <p className="text-sm text-indigo-100">
-                Оқылған кітап
-              </p>
-
-              <p className="mt-2 text-4xl font-extrabold">
-                {myResult.booksRead}
-              </p>
-            </div>
-
-            <div className="rounded-2xl bg-white/10 p-5">
-              <p className="text-sm text-indigo-100">
-                Жетістік
-              </p>
-
-              <p className="mt-2 text-4xl font-extrabold">
-                {unlockedCount}
-              </p>
-            </div>
-
-          </div>
-
-        </section>
-
-        {/* RANKING */}
-        <section className="mt-10">
-
-          <p className="text-sm font-bold uppercase tracking-widest text-indigo-600">
+          <p className="text-sm font-bold uppercase tracking-widest text-amber-100">
             2026–2027 оқу жылы
           </p>
 
-          <h2 className="mt-2 text-3xl font-extrabold text-slate-800">
-            🏆 Оқушылар рейтингі
-          </h2>
+          <h1 className="mt-2 text-4xl font-extrabold">
+            🏆 Оқырмандар рейтингі
+          </h1>
 
-          <p className="mt-2 text-slate-500">
-            Рейтинг жалпы жиналған ұпай бойынша құрылады.
+          <p className="mt-3 max-w-2xl text-amber-50">
+            Оқушылардың кітап оқу белсенділігі мен
+            жинаған ұпайлары бойынша ортақ рейтинг.
           </p>
 
-          <div className="mt-6 overflow-hidden rounded-3xl bg-white shadow-sm">
+        </section>
 
-            <div className="hidden grid-cols-12 gap-3 bg-slate-100 px-6 py-4 text-sm font-bold text-slate-500 md:grid">
+        {currentStudent && (
+          <section className="mt-6 rounded-3xl bg-indigo-600 p-7 text-white shadow-lg">
 
-              <div className="col-span-1">
-                Орын
+            <p className="text-sm font-bold text-indigo-200">
+              МЕНІҢ НӘТИЖЕМ
+            </p>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-4">
+
+              <div className="rounded-2xl bg-white/10 p-4">
+                <p className="text-sm text-indigo-100">
+                  Орным
+                </p>
+
+                <p className="mt-1 text-3xl font-extrabold">
+                  {currentPosition
+                    ? `${currentPosition}-орын`
+                    : "—"}
+                </p>
               </div>
 
-              <div className="col-span-5">
-                Оқушы
+              <div className="rounded-2xl bg-white/10 p-4">
+                <p className="text-sm text-indigo-100">
+                  Жалпы ұпай
+                </p>
+
+                <p className="mt-1 text-3xl font-extrabold">
+                  {currentStudent.total_points}
+                </p>
               </div>
 
-              <div className="col-span-2 text-center">
-                Кітап
+              <div className="rounded-2xl bg-white/10 p-4">
+                <p className="text-sm text-indigo-100">
+                  Оқылған кітап
+                </p>
+
+                <p className="mt-1 text-3xl font-extrabold">
+                  {currentStudent.books_read}
+                </p>
               </div>
 
-              <div className="col-span-2 text-center">
-                100 ұпай
-              </div>
+              <div className="rounded-2xl bg-white/10 p-4">
+                <p className="text-sm text-indigo-100">
+                  100 ұпайлық кітап
+                </p>
 
-              <div className="col-span-2 text-center">
-                Ұпай
+                <p className="mt-1 text-3xl font-extrabold">
+                  {currentStudent.perfect_books}
+                </p>
               </div>
 
             </div>
 
-            {ranking.map(
-              (item, index) => {
-                const isMe =
-                  item.id === myResult.id;
-
-                return (
-                  <div
-                    key={item.id}
-                    className={`border-t border-slate-100 p-6 ${
-                      isMe
-                        ? "bg-indigo-50"
-                        : "bg-white"
-                    }`}
+            <div className="mt-5 flex flex-wrap gap-2">
+              {getAchievements(currentStudent).map(
+                (achievement) => (
+                  <span
+                    key={achievement}
+                    className="rounded-full bg-white/15 px-4 py-2 text-sm font-bold"
                   >
+                    {achievement}
+                  </span>
+                )
+              )}
+            </div>
 
-                    <div className="grid gap-4 md:grid-cols-12 md:items-center">
+          </section>
+        )}
 
-                      <div className="md:col-span-1">
+        {errorMessage && (
+          <div className="mt-6 rounded-2xl bg-red-50 p-5 font-bold text-red-600">
+            {errorMessage}
+          </div>
+        )}
 
-                        <div
-                          className={`flex h-11 w-11 items-center justify-center rounded-full text-lg font-extrabold ${
-                            index === 0
-                              ? "bg-amber-100 text-amber-700"
-                              : index === 1
-                              ? "bg-slate-200 text-slate-700"
-                              : index === 2
-                              ? "bg-orange-100 text-orange-700"
-                              : "bg-slate-100 text-slate-600"
+        {!errorMessage && ranking.length === 0 && (
+          <section className="mt-6 rounded-3xl bg-white p-10 text-center shadow-sm">
+
+            <div className="text-5xl">
+              📚
+            </div>
+
+            <h2 className="mt-4 text-2xl font-extrabold text-slate-900">
+              Рейтинг әзірге бос
+            </h2>
+
+            <p className="mt-2 text-slate-500">
+              Оқушылар тапсырмаларды орындаған сайын
+              рейтинг осы жерде пайда болады.
+            </p>
+
+          </section>
+        )}
+
+        {ranking.length > 0 && (
+          <section className="mt-6 overflow-hidden rounded-3xl bg-white shadow-sm">
+
+            <div className="border-b border-slate-100 p-6">
+
+              <h2 className="text-2xl font-extrabold text-slate-900">
+                Жалпы рейтинг
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Барлығы: {ranking.length} оқушы
+              </p>
+
+            </div>
+
+            <div className="overflow-x-auto">
+
+              <table className="w-full min-w-[750px]">
+
+                <thead className="bg-slate-50 text-left text-sm text-slate-500">
+
+                  <tr>
+                    <th className="px-6 py-4">
+                      Орын
+                    </th>
+
+                    <th className="px-6 py-4">
+                      Оқушы
+                    </th>
+
+                    <th className="px-6 py-4">
+                      Сынып
+                    </th>
+
+                    <th className="px-6 py-4">
+                      Кітап
+                    </th>
+
+                    <th className="px-6 py-4">
+                      100 ұпай
+                    </th>
+
+                    <th className="px-6 py-4">
+                      Жалпы ұпай
+                    </th>
+                  </tr>
+
+                </thead>
+
+                <tbody>
+
+                  {ranking.map(
+                    (student, index) => {
+                      const isCurrent =
+                        student.student_id ===
+                        currentUserId;
+
+                      return (
+                        <tr
+                          key={student.student_id}
+                          className={`border-t border-slate-100 ${
+                            isCurrent
+                              ? "bg-indigo-50"
+                              : "bg-white"
                           }`}
                         >
-                          {index === 0
-                            ? "🥇"
-                            : index === 1
-                            ? "🥈"
-                            : index === 2
-                            ? "🥉"
-                            : index + 1}
-                        </div>
 
-                      </div>
+                          <td className="px-6 py-5 text-xl font-extrabold">
+                            {getMedal(index + 1)}
+                          </td>
 
-                      <div className="md:col-span-5">
+                          <td className="px-6 py-5">
 
-                        <p className="text-lg font-extrabold text-slate-800">
-                          {item.name}
+                            <p className="font-extrabold text-slate-900">
+                              {student.display_name}
 
-                          {isMe && (
-                            <span className="ml-2 rounded-full bg-indigo-100 px-2 py-1 text-xs font-bold text-indigo-700">
-                              Мен
+                              {isCurrent && (
+                                <span className="ml-2 rounded-full bg-indigo-600 px-2 py-1 text-xs text-white">
+                                  Сіз
+                                </span>
+                              )}
+                            </p>
+
+                            <p className="mt-1 text-sm text-slate-400">
+                              {student.school}
+                            </p>
+
+                          </td>
+
+                          <td className="px-6 py-5 font-semibold text-slate-700">
+                            {student.grade
+                              ? `${student.grade}-сынып`
+                              : "—"}
+                          </td>
+
+                          <td className="px-6 py-5 font-bold text-slate-700">
+                            {student.books_read}
+                          </td>
+
+                          <td className="px-6 py-5 font-bold text-amber-600">
+                            {student.perfect_books}
+                          </td>
+
+                          <td className="px-6 py-5">
+
+                            <span className="rounded-xl bg-indigo-50 px-4 py-2 text-lg font-extrabold text-indigo-700">
+                              {student.total_points}
                             </span>
-                          )}
-                        </p>
 
-                        <p className="mt-1 text-sm text-slate-500">
-                          {item.grade} · {item.school}
-                        </p>
+                          </td>
 
-                      </div>
+                        </tr>
+                      );
+                    }
+                  )}
 
-                      <div className="md:col-span-2 md:text-center">
+                </tbody>
 
-                        <p className="text-xs text-slate-400 md:hidden">
-                          Оқылған кітап
-                        </p>
-
-                        <p className="font-extrabold text-slate-700">
-                          {item.booksRead}
-                        </p>
-
-                      </div>
-
-                      <div className="md:col-span-2 md:text-center">
-
-                        <p className="text-xs text-slate-400 md:hidden">
-                          100 ұпайлық нәтиже
-                        </p>
-
-                        <p className="font-extrabold text-amber-600">
-                          {item.perfectBooks}
-                        </p>
-
-                      </div>
-
-                      <div className="md:col-span-2 md:text-center">
-
-                        <p className="text-xs text-slate-400 md:hidden">
-                          Жалпы ұпай
-                        </p>
-
-                        <p className="text-2xl font-extrabold text-emerald-600">
-                          {item.totalPoints}
-                        </p>
-
-                      </div>
-
-                    </div>
-
-                  </div>
-                );
-              }
-            )}
-
-          </div>
-
-          {ranking.length === 1 && (
-            <div className="mt-4 rounded-2xl bg-amber-50 p-5">
-
-              <p className="font-bold text-amber-700">
-                ℹ️ Қазір рейтингте 1 оқушы
-              </p>
-
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                Басқа оқушылар тіркелген сайын олардың нәтижелерін де
-                осы рейтингке қосуға болады. Нақты онлайн нұсқада бұл
-                ақпарат ортақ дерекқордан алынады.
-              </p>
+              </table>
 
             </div>
-          )}
 
-        </section>
+          </section>
+        )}
 
-        {/* ACHIEVEMENTS */}
-        <section className="mt-12">
+        <div className="mt-8 text-center">
 
-          <p className="text-sm font-bold uppercase tracking-widest text-violet-600">
-            Марапаттар
-          </p>
+          <a
+            href="/profile"
+            className="inline-block rounded-xl bg-indigo-600 px-7 py-4 font-extrabold text-white"
+          >
+            ← Жеке кабинетке қайту
+          </a>
 
-          <h2 className="mt-2 text-3xl font-extrabold text-slate-800">
-            ⭐ Менің жетістіктерім
-          </h2>
-
-          <p className="mt-2 text-slate-500">
-            Кітап оқып, ұпай жинаған сайын жаңа жетістіктер ашылады.
-          </p>
-
-          <div className="mt-6 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-
-            {achievements.map(
-              (achievement) => (
-                <div
-                  key={achievement.title}
-                  className={`rounded-3xl border-2 p-6 ${
-                    achievement.unlocked
-                      ? "border-amber-200 bg-white shadow-sm"
-                      : "border-slate-100 bg-slate-100 opacity-60"
-                  }`}
-                >
-
-                  <div className="text-5xl">
-                    {achievement.unlocked
-                      ? achievement.icon
-                      : "🔒"}
-                  </div>
-
-                  <h3 className="mt-4 text-xl font-extrabold text-slate-800">
-                    {achievement.title}
-                  </h3>
-
-                  <p className="mt-2 leading-6 text-slate-500">
-                    {achievement.description}
-                  </p>
-
-                  <p
-                    className={`mt-4 font-bold ${
-                      achievement.unlocked
-                        ? "text-emerald-600"
-                        : "text-slate-400"
-                    }`}
-                  >
-                    {achievement.unlocked
-                      ? "✓ Жетістік ашылды"
-                      : "Әлі ашылған жоқ"}
-                  </p>
-
-                </div>
-              )
-            )}
-
-          </div>
-
-        </section>
+        </div>
 
       </div>
-
     </main>
   );
 }
