@@ -61,7 +61,6 @@ export default function BooksPage() {
       return;
     }
 
-    // Бұл кітап бұрын таңдалған ба — тексереміз
     const { data: existingProgress, error: checkError } =
       await supabase
         .from("reading_progress")
@@ -83,7 +82,6 @@ export default function BooksPage() {
       return;
     }
 
-    // Егер бұрын таңдалмаған болса — Supabase-қа жазамыз
     if (!existingProgress) {
       const { error: insertError } = await supabase
         .from("reading_progress")
@@ -107,8 +105,6 @@ export default function BooksPage() {
       }
     }
 
-    // Қазіргі басқа беттер де жұмыс істей беруі үшін
-    // таңдалған кітапты localStorage-қа сақтаймыз
     const currentBook = {
       id: book.id,
       title: book.title,
@@ -121,7 +117,6 @@ export default function BooksPage() {
       JSON.stringify(currentBook)
     );
 
-    // Оқу тарихына қосамыз
     const savedHistory = localStorage.getItem(
       "smartOqyrmanBookHistory"
     );
@@ -149,7 +144,6 @@ export default function BooksPage() {
       );
     }
 
-    // Жеке кабинеттегі қазіргі оқу күйі жоғалмауы үшін
     const savedReadingResults = localStorage.getItem(
       "smartOqyrmanReadingResults"
     );
@@ -240,6 +234,45 @@ export default function BooksPage() {
                 <p className="mt-4 text-sm text-slate-400">
                   {book.academic_year} оқу жылы
                 </p>
+
+                {book.title
+                  .toLowerCase()
+                  .includes("менің атым қожа") && (
+                  <div className="mt-5 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-4">
+                    <div className="mb-2 flex items-center gap-2">
+                      <span className="text-2xl">
+                        🎧
+                      </span>
+
+                      <div>
+                        <p className="font-extrabold text-slate-900">
+                          Аудио үзінді
+                        </p>
+
+                        <p className="text-xs text-slate-500">
+                          Қызықты үзіндіні тыңда да, жалғасын кітаптан оқы
+                        </p>
+                      </div>
+                    </div>
+
+                    <audio
+                      controls
+                      preload="metadata"
+                      className="mt-3 w-full"
+                    >
+                      <source
+                        src="/audio/menin-atym-kozha.mp3"
+                        type="audio/mpeg"
+                      />
+
+                      Сіздің браузер аудионы қолдамайды.
+                    </audio>
+
+                    <p className="mt-2 text-center text-xs font-semibold text-amber-700">
+                      🎙️ 57 секундтық аудио үзінді
+                    </p>
+                  </div>
+                )}
 
                 <button
                   onClick={() => selectBook(book)}
