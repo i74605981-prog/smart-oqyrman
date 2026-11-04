@@ -10,6 +10,55 @@ type Book = {
   academic_year: string;
 };
 
+type AudioInfo = {
+  src: string;
+  label: string;
+};
+
+function getAudioForBook(title: string): AudioInfo | null {
+  const normalized = title.toLowerCase().trim();
+
+  if (normalized.includes("менің атым қожа")) {
+    return {
+      src: "/audio/menin-atym-kozha.mp3",
+      label: "«Менің атым Қожа» шығармасынан аудио үзінді",
+    };
+  }
+
+  if (normalized.includes("тұлпардың соңғы тұяғы")) {
+    return {
+      src: "/audio/tulpardyn-songy-tuyagy.mp3",
+      label: "«Тұлпардың соңғы тұяғы» шығармасынан аудио үзінді",
+    };
+  }
+
+  if (normalized.includes("өгей бала")) {
+    return {
+      src: "/audio/ogey-bala.mp3",
+      label: "«Өгей бала» шығармасынан аудио үзінді",
+    };
+  }
+
+  if (normalized.includes("бір уыс жусан")) {
+    return {
+      src: "/audio/bir-uys-zhusan.mp3",
+      label: "«Бір уыс жусан» шығармасынан аудио үзінді",
+    };
+  }
+
+  if (
+    normalized.includes("әкең де бала болған") ||
+    normalized.includes("әкеңде бала болған")
+  ) {
+    return {
+      src: "/audio/aken-de-bala-bolgan.mp3",
+      label: "«Әкең де бала болған» шығармасынан аудио үзінді",
+    };
+  }
+
+  return null;
+}
+
 export default function BooksPage() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,11 +123,7 @@ export default function BooksPage() {
     if (checkError) {
       console.error(checkError);
       setSelectingId(null);
-
-      alert(
-        "Кітапты тексеру кезінде қате шықты."
-      );
-
+      alert("Кітапты тексеру кезінде қате шықты.");
       return;
     }
 
@@ -96,11 +141,7 @@ export default function BooksPage() {
       if (insertError) {
         console.error(insertError);
         setSelectingId(null);
-
-        alert(
-          "Кітапты сақтау кезінде қате шықты."
-        );
-
+        alert("Кітапты сақтау кезінде қате шықты.");
         return;
       }
     }
@@ -182,7 +223,7 @@ export default function BooksPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-5 py-10">
+    <main className="min-h-screen bg-gradient-to-b from-violet-50 via-white to-blue-50 px-5 py-10">
       <div className="mx-auto max-w-6xl">
 
         <header className="text-center">
@@ -197,8 +238,10 @@ export default function BooksPage() {
             📚 Кітаптар
           </h1>
 
-          <p className="mt-3 text-slate-500">
-            5–9 сынып оқушыларына арналған ортақ кітаптар
+          <p className="mx-auto mt-3 max-w-2xl text-slate-500">
+            Кітапты таңда, мектеп кітапханасынан ал,
+            қызықты аудио үзіндіні тыңда да,
+            шығарманың жалғасын кітаптан оқы.
           </p>
         </header>
 
@@ -207,84 +250,110 @@ export default function BooksPage() {
             Кітаптар жүктелуде...
           </div>
         ) : (
-          <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {books.map((book, index) => (
-              <article
-                key={book.id}
-                className="rounded-3xl bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="rounded-full bg-indigo-50 px-3 py-1 text-sm font-bold text-indigo-700">
-                    {index + 1}-кітап
-                  </span>
+          <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
 
-                  <span className="text-3xl">
-                    📖
-                  </span>
-                </div>
+            {books.map((book, index) => {
+              const audio = getAudioForBook(book.title);
 
-                <h2 className="mt-5 text-xl font-extrabold text-slate-900">
-                  {book.title}
-                </h2>
-
-                <p className="mt-2 text-slate-500">
-                  {book.author}
-                </p>
-
-                <p className="mt-4 text-sm text-slate-400">
-                  {book.academic_year} оқу жылы
-                </p>
-
-                {book.title
-                  .toLowerCase()
-                  .includes("менің атым қожа") && (
-                  <div className="mt-5 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-orange-50 p-4">
-                    <div className="mb-2 flex items-center gap-2">
-                      <span className="text-2xl">
-                        🎧
-                      </span>
-
-                      <div>
-                        <p className="font-extrabold text-slate-900">
-                          Аудио үзінді
-                        </p>
-
-                        <p className="text-xs text-slate-500">
-                          Қызықты үзіндіні тыңда да, жалғасын кітаптан оқы
-                        </p>
-                      </div>
-                    </div>
-
-                    <audio
-                      controls
-                      preload="metadata"
-                      className="mt-3 w-full"
-                    >
-                      <source
-                        src="/audio/menin-atym-kozha.mp3"
-                        type="audio/mpeg"
-                      />
-
-                      Сіздің браузер аудионы қолдамайды.
-                    </audio>
-
-                    <p className="mt-2 text-center text-xs font-semibold text-amber-700">
-                      🎙️ 57 секундтық аудио үзінді
-                    </p>
-                  </div>
-                )}
-
-                <button
-                  onClick={() => selectBook(book)}
-                  disabled={selectingId === book.id}
-                  className="mt-6 w-full rounded-xl bg-indigo-600 px-5 py-3 font-bold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+              return (
+                <article
+                  key={book.id}
+                  className="overflow-hidden rounded-3xl border border-slate-100 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
                 >
-                  {selectingId === book.id
-                    ? "Сақталуда..."
-                    : "Осы кітапты таңдау →"}
-                </button>
-              </article>
-            ))}
+                  <div className="flex items-center justify-between">
+
+                    <span className="rounded-full bg-indigo-50 px-3 py-1 text-sm font-bold text-indigo-700">
+                      {index + 1}-кітап
+                    </span>
+
+                    <span className="text-3xl">
+                      📖
+                    </span>
+
+                  </div>
+
+                  <h2 className="mt-5 text-xl font-extrabold text-slate-900">
+                    {book.title}
+                  </h2>
+
+                  <p className="mt-2 font-medium text-slate-500">
+                    {book.author}
+                  </p>
+
+                  <p className="mt-4 text-sm text-slate-400">
+                    {book.academic_year} оқу жылы
+                  </p>
+
+                  {/* МЕКТЕП КІТАПХАНАСЫ */}
+                  <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+
+                    <p className="font-extrabold text-emerald-800">
+                      🏫 Кітапты мектеп кітапханасынан алыңыз
+                    </p>
+
+                    <p className="mt-1 text-sm leading-6 text-emerald-700">
+                      SMART OQYRMAN кітапты алмастырмайды —
+                      оқушыны кітапханаға және кітап оқуға бағыттайды.
+                    </p>
+
+                  </div>
+
+                  {/* АУДИО */}
+                  {audio && (
+                    <div className="mt-4 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 p-4">
+
+                      <div className="flex items-start gap-3">
+
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-100 text-2xl">
+                          🎧
+                        </div>
+
+                        <div>
+                          <p className="font-extrabold text-slate-900">
+                            Аудио үзінді
+                          </p>
+
+                          <p className="mt-1 text-xs leading-5 text-slate-500">
+                            {audio.label}
+                          </p>
+                        </div>
+
+                      </div>
+
+                      <audio
+                        controls
+                        preload="metadata"
+                        className="mt-4 w-full"
+                      >
+                        <source
+                          src={audio.src}
+                          type="audio/mpeg"
+                        />
+
+                        Сіздің браузер аудионы қолдамайды.
+                      </audio>
+
+                      <div className="mt-3 rounded-xl bg-white/80 px-3 py-2 text-center text-xs font-bold text-amber-700">
+                        ✨ Тыңда да, жалғасын кітаптан оқы!
+                      </div>
+
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => selectBook(book)}
+                    disabled={selectingId === book.id}
+                    className="mt-6 w-full rounded-xl bg-indigo-600 px-5 py-3 font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {selectingId === book.id
+                      ? "Сақталуда..."
+                      : "Осы кітапты таңдау →"}
+                  </button>
+
+                </article>
+              );
+            })}
+
           </div>
         )}
 
