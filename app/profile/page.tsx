@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import { createClient } from "../../utils/supabase/client";
 
 type Profile = {
@@ -43,14 +49,49 @@ type BookResult = {
   totalScore: number;
 };
 
+type Classroom = {
+  id: string;
+  name: string;
+  grade: number | null;
+  class_code: string;
+  academic_year: string;
+};
+
+type ClassMember = {
+  classroom_id: string;
+};
+
 export default function ProfilePage() {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [books, setBooks] = useState<Book[]>([]);
-  const [reading, setReading] = useState<ReadingProgress[]>([]);
-  const [tests, setTests] = useState<ScoreRow[]>([]);
-  const [creative, setCreative] = useState<ScoreRow[]>([]);
-  const [reviews, setReviews] = useState<ScoreRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] =
+    useState<Profile | null>(null);
+
+  const [books, setBooks] =
+    useState<Book[]>([]);
+
+  const [reading, setReading] =
+    useState<ReadingProgress[]>([]);
+
+  const [tests, setTests] =
+    useState<ScoreRow[]>([]);
+
+  const [creative, setCreative] =
+    useState<ScoreRow[]>([]);
+
+  const [reviews, setReviews] =
+    useState<ScoreRow[]>([]);
+
+  const [classrooms, setClassrooms] =
+    useState<Classroom[]>([]);
+
+  const [classCode, setClassCode] =
+    useState("");
+
+  const [joiningClass, setJoiningClass] =
+    useState(false);
+
+  const [loading, setLoading] =
+    useState(true);
+
   const [finishingBook, setFinishingBook] =
     useState<number | null>(null);
 
@@ -77,6 +118,7 @@ export default function ProfilePage() {
       testResult,
       creativeResult,
       reviewResult,
+      memberResult,
     ] = await Promise.all([
       supabase
         .from("profiles")
@@ -88,9 +130,13 @@ export default function ProfilePage() {
 
       supabase
         .from("books")
-        .select("id, title, author, academic_year")
+        .select(
+          "id, title, author, academic_year"
+        )
         .eq("active", true)
-        .order("id", { ascending: true }),
+        .order("id", {
+          ascending: true,
+        }),
 
       supabase
         .from("reading_progress")
@@ -98,66 +144,173 @@ export default function ProfilePage() {
           "book_id, status, reading_score, started_at, finished_at, updated_at"
         )
         .eq("student_id", user.id)
-        .order("updated_at", { ascending: false }),
+        .order("updated_at", {
+          ascending: false,
+        }),
 
       supabase
         .from("test_results")
-        .select("book_id, score")
+        .select(
+          "book_id, score"
+        )
         .eq("student_id", user.id),
 
       supabase
         .from("creative_submissions")
-        .select("book_id, score")
+        .select(
+          "book_id, score"
+        )
         .eq("student_id", user.id),
 
       supabase
         .from("reviews")
-        .select("book_id, score")
+        .select(
+          "book_id, score"
+        )
+        .eq("student_id", user.id),
+
+      supabase
+        .from("class_members")
+        .select("classroom_id")
         .eq("student_id", user.id),
     ]);
 
     if (profileResult.error) {
-      console.error(profileResult.error);
-      alert("Оқушы профилін жүктеу кезінде қате шықты.");
+      console.error(
+        profileResult.error
+      );
+
+      alert(
+        "Оқушы профилін жүктеу кезінде қате шықты."
+      );
+
       setLoading(false);
       return;
     }
 
-    setProfile(profileResult.data);
-    setBooks(booksResult.data ?? []);
-    setReading(readingResult.data ?? []);
-    setTests(testResult.data ?? []);
-    setCreative(creativeResult.data ?? []);
-    setReviews(reviewResult.data ?? []);
+    setProfile(
+      profileResult.data
+    );
 
-    const savedBooks = booksResult.data ?? [];
-    const savedReading = readingResult.data ?? [];
+    setBooks(
+      booksResult.data ?? []
+    );
 
-    if (savedReading.length > 0) {
-      const currentProgress = savedReading[0];
+    setReading(
+      readingResult.data ?? []
+    );
 
-      const currentBook = savedBooks.find(
-        (book) => book.id === currentProgress.book_id
-      );
+    setTests(
+      testResult.data ?? []
+    );
+
+    setCreative(
+      creativeResult.data ?? []
+    );
+
+    setReviews(
+      reviewResult.data ?? []
+    );
+
+    /*
+      Оқушы қосылған сыныптарды жүктейміз
+    */
+    const membershipRows =
+      (memberResult.data ??
+        []) as ClassMember[];
+
+    if (
+      membershipRows.length > 0
+    ) {
+      const classIds =
+        membershipRows.map(
+          (item) =>
+            item.classroom_id
+        );
+
+      const {
+        data: classRows,
+        error: classError,
+      } = await supabase
+        .from("classrooms")
+        .select(
+          "id, name, grade, class_code, academic_year"
+        )
+        .in(
+          "id",
+          classIds
+        )
+        .order(
+          "created_at",
+          {
+            ascending: false,
+          }
+        );
+
+      if (classError) {
+        console.error(
+          classError
+        );
+
+        setClassrooms([]);
+      } else {
+        setClassrooms(
+          classRows ?? []
+        );
+      }
+    } else {
+      setClassrooms([]);
+    }
+
+    /*
+      Бұрынғы сайт беттері жұмысын
+      жалғастыру үшін localStorage
+      деректерін жаңартамыз.
+    */
+    const savedBooks =
+      booksResult.data ?? [];
+
+    const savedReading =
+      readingResult.data ?? [];
+
+    if (
+      savedReading.length > 0
+    ) {
+      const currentProgress =
+        savedReading[0];
+
+      const currentBook =
+        savedBooks.find(
+          (book) =>
+            book.id ===
+            currentProgress.book_id
+        );
 
       if (currentBook) {
         localStorage.setItem(
           "smartOqyrmanCurrentBook",
-          JSON.stringify(currentBook)
+          JSON.stringify(
+            currentBook
+          )
         );
       }
 
-      const history = savedReading
-        .map((item) =>
-          savedBooks.find(
-            (book) => book.id === item.book_id
+      const history =
+        savedReading
+          .map((item) =>
+            savedBooks.find(
+              (book) =>
+                book.id ===
+                item.book_id
+            )
           )
-        )
-        .filter(Boolean);
+          .filter(Boolean);
 
       localStorage.setItem(
         "smartOqyrmanBookHistory",
-        JSON.stringify(history)
+        JSON.stringify(
+          history
+        )
       );
 
       const readingResults: Record<
@@ -168,127 +321,282 @@ export default function ProfilePage() {
         }
       > = {};
 
-      savedReading.forEach((item) => {
-        const book = savedBooks.find(
-          (itemBook) =>
-            itemBook.id === item.book_id
-        );
+      savedReading.forEach(
+        (item) => {
+          const book =
+            savedBooks.find(
+              (savedBook) =>
+                savedBook.id ===
+                item.book_id
+            );
 
-        if (book) {
-          readingResults[book.title] = {
-            status: item.status,
-            score: item.reading_score,
-          };
+          if (book) {
+            readingResults[
+              book.title
+            ] = {
+              status:
+                item.status,
+
+              score:
+                item.reading_score,
+            };
+          }
         }
-      });
+      );
 
       localStorage.setItem(
         "smartOqyrmanReadingResults",
-        JSON.stringify(readingResults)
+        JSON.stringify(
+          readingResults
+        )
       );
     }
 
     setLoading(false);
   }
 
-  const results = useMemo<BookResult[]>(() => {
-    return reading
-      .map((readingItem) => {
-        const book = books.find(
-          (item) => item.id === readingItem.book_id
-        );
+  const results =
+    useMemo<BookResult[]>(
+      () => {
+        return reading
+          .map(
+            (
+              readingItem
+            ) => {
+              const book =
+                books.find(
+                  (item) =>
+                    item.id ===
+                    readingItem.book_id
+                );
 
-        if (!book) {
-          return null;
-        }
+              if (!book) {
+                return null;
+              }
 
-        const testScore =
-          tests.find(
-            (item) =>
-              item.book_id === readingItem.book_id
-          )?.score ?? 0;
+              const testScore =
+                tests.find(
+                  (item) =>
+                    item.book_id ===
+                    readingItem.book_id
+                )?.score ?? 0;
 
-        const creativeScore =
-          creative.find(
-            (item) =>
-              item.book_id === readingItem.book_id
-          )?.score ?? 0;
+              const creativeScore =
+                creative.find(
+                  (item) =>
+                    item.book_id ===
+                    readingItem.book_id
+                )?.score ?? 0;
 
-        const reviewScore =
-          reviews.find(
-            (item) =>
-              item.book_id === readingItem.book_id
-          )?.score ?? 0;
+              const reviewScore =
+                reviews.find(
+                  (item) =>
+                    item.book_id ===
+                    readingItem.book_id
+                )?.score ?? 0;
 
-        const totalScore =
-          readingItem.reading_score +
-          testScore +
-          creativeScore +
-          reviewScore;
+              const totalScore =
+                readingItem.reading_score +
+                testScore +
+                creativeScore +
+                reviewScore;
 
-        return {
-          book,
-          status: readingItem.status,
-          readingScore: readingItem.reading_score,
-          testScore,
-          creativeScore,
-          reviewScore,
-          totalScore,
-        };
-      })
-      .filter(
-        (item): item is BookResult =>
-          item !== null
-      );
-  }, [books, reading, tests, creative, reviews]);
+              return {
+                book,
+                status:
+                  readingItem.status,
 
-  const totalPoints = results.reduce(
-    (sum, item) => sum + item.totalScore,
-    0
-  );
+                readingScore:
+                  readingItem.reading_score,
 
-  const booksRead = results.filter(
-    (item) => item.status === "finished"
-  ).length;
+                testScore,
+                creativeScore,
+                reviewScore,
+                totalScore,
+              };
+            }
+          )
+          .filter(
+            (
+              item
+            ): item is BookResult =>
+              item !== null
+          );
+      },
+      [
+        books,
+        reading,
+        tests,
+        creative,
+        reviews,
+      ]
+    );
 
-  const perfectBooks = results.filter(
-    (item) => item.totalScore === 100
-  ).length;
+  const totalPoints =
+    results.reduce(
+      (sum, item) =>
+        sum +
+        item.totalScore,
+      0
+    );
+
+  const booksRead =
+    results.filter(
+      (item) =>
+        item.status ===
+        "finished"
+    ).length;
+
+  const perfectBooks =
+    results.filter(
+      (item) =>
+        item.totalScore ===
+        100
+    ).length;
 
   const currentResult =
-    results.length > 0 ? results[0] : null;
+    results.length > 0
+      ? results[0]
+      : null;
 
-  async function finishReading(bookId: number) {
-    setFinishingBook(bookId);
+  /*
+    ОҚУШЫ СЫНЫП КОДЫН ЕНГІЗЕДІ
+  */
+  async function joinClass(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
 
-    const supabase = createClient();
+    const cleanCode =
+      classCode
+        .trim()
+        .toUpperCase();
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      setFinishingBook(null);
-      window.location.href = "/login";
+    if (!cleanCode) {
+      alert(
+        "Мұғалім берген сынып кодын енгізіңіз."
+      );
       return;
     }
 
-    const now = new Date().toISOString();
+    setJoiningClass(true);
 
-    const { error } = await supabase
-      .from("reading_progress")
-      .update({
-        status: "finished",
-        reading_score: 20,
-        finished_at: now,
-        updated_at: now,
-      })
-      .eq("student_id", user.id)
-      .eq("book_id", bookId);
+    const supabase =
+      createClient();
+
+    const {
+      data: { user },
+    } =
+      await supabase.auth.getUser();
+
+    if (!user) {
+      setJoiningClass(false);
+
+      window.location.href =
+        "/login";
+
+      return;
+    }
+
+    const {
+      data,
+      error,
+    } = await supabase.rpc(
+      "join_class_by_code",
+      {
+        p_class_code:
+          cleanCode,
+      }
+    );
 
     if (error) {
       console.error(error);
-      setFinishingBook(null);
+
+      setJoiningClass(false);
+
+      alert(
+        "Сыныпқа қосылу мүмкін болмады. Кодты қайта тексеріңіз."
+      );
+
+      return;
+    }
+
+    if (!data) {
+      setJoiningClass(false);
+
+      alert(
+        "Сынып табылмады."
+      );
+
+      return;
+    }
+
+    setClassCode("");
+
+    setJoiningClass(false);
+
+    alert(
+      "Сыныпқа сәтті қосылдыңыз!"
+    );
+
+    await loadProfile();
+  }
+
+  async function finishReading(
+    bookId: number
+  ) {
+    setFinishingBook(
+      bookId
+    );
+
+    const supabase =
+      createClient();
+
+    const {
+      data: { user },
+    } =
+      await supabase.auth.getUser();
+
+    if (!user) {
+      setFinishingBook(
+        null
+      );
+
+      window.location.href =
+        "/login";
+
+      return;
+    }
+
+    const now =
+      new Date().toISOString();
+
+    const { error } =
+      await supabase
+        .from(
+          "reading_progress"
+        )
+        .update({
+          status: "finished",
+          reading_score: 20,
+          finished_at: now,
+          updated_at: now,
+        })
+        .eq(
+          "student_id",
+          user.id
+        )
+        .eq(
+          "book_id",
+          bookId
+        );
+
+    if (error) {
+      console.error(error);
+
+      setFinishingBook(
+        null
+      );
 
       alert(
         "Оқу нәтижесін сақтау кезінде қате шықты."
@@ -297,13 +605,16 @@ export default function ProfilePage() {
       return;
     }
 
-    setFinishingBook(null);
+    setFinishingBook(
+      null
+    );
 
     await loadProfile();
   }
 
   async function logout() {
-    const supabase = createClient();
+    const supabase =
+      createClient();
 
     await supabase.auth.signOut();
 
@@ -315,15 +626,22 @@ export default function ProfilePage() {
       "smartOqyrmanActiveStudentId"
     );
 
-    window.location.href = "/login";
+    localStorage.removeItem(
+      "smartOqyrmanCurrentUser"
+    );
+
+    window.location.href =
+      "/login";
   }
 
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-50 px-5 py-20">
+
         <div className="text-center text-lg font-bold text-slate-500">
           Жеке кабинет жүктелуде...
         </div>
+
       </main>
     );
   }
@@ -334,11 +652,14 @@ export default function ProfilePage() {
 
   return (
     <main className="min-h-screen bg-slate-50 px-5 py-8">
+
       <div className="mx-auto max-w-6xl">
 
+        {/* HEADER */}
         <header className="flex flex-col gap-4 rounded-3xl bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
 
           <div>
+
             <a
               href="/"
               className="text-2xl font-extrabold text-indigo-700"
@@ -349,9 +670,11 @@ export default function ProfilePage() {
             <p className="mt-1 text-sm text-slate-500">
               Кітап оқы. Ойлан. Талда. Дамы.
             </p>
+
           </div>
 
           <button
+            type="button"
             onClick={logout}
             className="rounded-xl bg-slate-100 px-5 py-3 font-bold text-slate-700"
           >
@@ -360,6 +683,7 @@ export default function ProfilePage() {
 
         </header>
 
+        {/* PROFILE */}
         <section className="mt-6 rounded-3xl bg-gradient-to-br from-indigo-600 to-violet-600 p-7 text-white shadow-lg">
 
           <p className="text-sm font-bold text-indigo-100">
@@ -374,7 +698,8 @@ export default function ProfilePage() {
 
             {profile.grade && (
               <span className="rounded-full bg-white/15 px-4 py-2">
-                {profile.grade}-сынып
+                {profile.grade}
+                -сынып
               </span>
             )}
 
@@ -390,67 +715,210 @@ export default function ProfilePage() {
 
         </section>
 
+        {/* СЫНЫПҚА ҚОСЫЛУ */}
+        <section className="mt-6 rounded-3xl bg-white p-7 shadow-sm">
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+
+            <div>
+
+              <p className="text-sm font-bold uppercase tracking-widest text-violet-600">
+                SMART OQYRMAN СЫНЫБЫ
+              </p>
+
+              <h2 className="mt-2 text-2xl font-extrabold text-slate-900">
+                🔑 Сыныпқа қосылу
+              </h2>
+
+              <p className="mt-2 max-w-2xl leading-7 text-slate-500">
+                Мұғалім берген сынып кодын енгізіңіз.
+                Осыдан кейін сіздің оқу нәтижеңіз мұғалімнің сыныбында көрінеді.
+              </p>
+
+            </div>
+
+          </div>
+
+          <form
+            onSubmit={joinClass}
+            className="mt-6 flex flex-col gap-3 sm:flex-row"
+          >
+
+            <input
+              type="text"
+              value={classCode}
+              onChange={(event) =>
+                setClassCode(
+                  event.target.value
+                )
+              }
+              placeholder="Мысалы: SO-A12B34"
+              className="flex-1 rounded-xl border border-slate-200 px-5 py-4 font-bold uppercase tracking-wider outline-none focus:border-violet-500"
+            />
+
+            <button
+              type="submit"
+              disabled={
+                joiningClass
+              }
+              className="rounded-xl bg-violet-600 px-7 py-4 font-extrabold text-white hover:bg-violet-700 disabled:opacity-60"
+            >
+              {joiningClass
+                ? "Қосылуда..."
+                : "Сыныпқа қосылу →"}
+            </button>
+
+          </form>
+
+          {/* ҚОСЫЛҒАН СЫНЫПТАР */}
+          {classrooms.length > 0 && (
+            <div className="mt-6">
+
+              <p className="mb-3 font-extrabold text-slate-800">
+                ✅ Мен қосылған сыныптар
+              </p>
+
+              <div className="grid gap-3 md:grid-cols-2">
+
+                {classrooms.map(
+                  (classroom) => (
+                    <div
+                      key={
+                        classroom.id
+                      }
+                      className="rounded-2xl border border-indigo-100 bg-indigo-50 p-5"
+                    >
+
+                      <div className="flex items-start justify-between gap-3">
+
+                        <div>
+
+                          <p className="text-sm font-bold text-indigo-600">
+                            {classroom.grade
+                              ? `${classroom.grade}-сынып`
+                              : "SMART OQYRMAN"}
+                          </p>
+
+                          <p className="mt-1 text-lg font-extrabold text-slate-900">
+                            {
+                              classroom.name
+                            }
+                          </p>
+
+                        </div>
+
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-emerald-600">
+                          Қосылды
+                        </span>
+
+                      </div>
+
+                      <p className="mt-3 text-sm text-slate-500">
+                        Код:{" "}
+                        <span className="font-bold text-indigo-700">
+                          {
+                            classroom.class_code
+                          }
+                        </span>
+                      </p>
+
+                    </div>
+                  )
+                )}
+
+              </div>
+
+            </div>
+          )}
+
+        </section>
+
+        {/* STATISTICS */}
         <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
           <div className="rounded-3xl bg-white p-6 shadow-sm">
+
             <p className="text-sm text-slate-500">
               Жалпы ұпай
             </p>
+
             <p className="mt-2 text-3xl font-extrabold text-indigo-700">
               {totalPoints}
             </p>
+
           </div>
 
           <div className="rounded-3xl bg-white p-6 shadow-sm">
+
             <p className="text-sm text-slate-500">
               Оқылған кітап
             </p>
+
             <p className="mt-2 text-3xl font-extrabold text-slate-900">
               {booksRead}
             </p>
+
           </div>
 
           <div className="rounded-3xl bg-white p-6 shadow-sm">
+
             <p className="text-sm text-slate-500">
               Таңдалған кітап
             </p>
+
             <p className="mt-2 text-3xl font-extrabold text-slate-900">
               {results.length}
             </p>
+
           </div>
 
           <div className="rounded-3xl bg-white p-6 shadow-sm">
+
             <p className="text-sm text-slate-500">
               100 ұпайлық нәтиже
             </p>
+
             <p className="mt-2 text-3xl font-extrabold text-amber-500">
               {perfectBooks}
             </p>
+
           </div>
 
         </section>
 
+        {/* CURRENT BOOK */}
         {currentResult ? (
           <section className="mt-6 rounded-3xl bg-white p-7 shadow-sm">
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 
               <div>
+
                 <p className="text-sm font-bold text-indigo-600">
                   ҚАЗІРГІ КІТАП
                 </p>
 
                 <h2 className="mt-2 text-2xl font-extrabold text-slate-900">
-                  {currentResult.book.title}
+                  {
+                    currentResult.book
+                      .title
+                  }
                 </h2>
 
                 <p className="mt-1 text-slate-500">
-                  {currentResult.book.author}
+                  {
+                    currentResult.book
+                      .author
+                  }
                 </p>
+
               </div>
 
               <span className="rounded-full bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700">
-                {currentResult.totalScore} / 100 ұпай
+                {
+                  currentResult.totalScore
+                }{" "}
+                / 100 ұпай
               </span>
 
             </div>
@@ -458,47 +926,75 @@ export default function ProfilePage() {
             <div className="mt-6 grid gap-3 sm:grid-cols-4">
 
               <div className="rounded-2xl bg-slate-50 p-4">
+
                 <p className="text-sm text-slate-500">
                   📖 Оқу
                 </p>
+
                 <p className="mt-1 text-xl font-extrabold">
-                  {currentResult.readingScore}/20
+                  {
+                    currentResult.readingScore
+                  }
+                  /20
                 </p>
+
               </div>
 
               <div className="rounded-2xl bg-slate-50 p-4">
+
                 <p className="text-sm text-slate-500">
                   📝 Тест
                 </p>
+
                 <p className="mt-1 text-xl font-extrabold">
-                  {currentResult.testScore}/50
+                  {
+                    currentResult.testScore
+                  }
+                  /50
                 </p>
+
               </div>
 
               <div className="rounded-2xl bg-slate-50 p-4">
+
                 <p className="text-sm text-slate-500">
                   🎨 Шығармашылық
                 </p>
+
                 <p className="mt-1 text-xl font-extrabold">
-                  {currentResult.creativeScore}/10
+                  {
+                    currentResult.creativeScore
+                  }
+                  /10
                 </p>
+
               </div>
 
               <div className="rounded-2xl bg-slate-50 p-4">
+
                 <p className="text-sm text-slate-500">
                   💬 Пікір
                 </p>
+
                 <p className="mt-1 text-xl font-extrabold">
-                  {currentResult.reviewScore}/20
+                  {
+                    currentResult.reviewScore
+                  }
+                  /20
                 </p>
+
               </div>
 
             </div>
 
-            {currentResult.status !== "finished" ? (
+            {currentResult.status !==
+            "finished" ? (
               <button
+                type="button"
                 onClick={() =>
-                  finishReading(currentResult.book.id)
+                  finishReading(
+                    currentResult.book.id
+                  )
                 }
                 disabled={
                   finishingBook ===
@@ -568,10 +1064,12 @@ export default function ProfilePage() {
           </section>
         )}
 
+        {/* HISTORY */}
         {results.length > 0 && (
           <section className="mt-6">
 
             <div className="flex items-center justify-between">
+
               <h2 className="text-2xl font-extrabold text-slate-900">
                 📚 Оқу тарихым
               </h2>
@@ -582,48 +1080,70 @@ export default function ProfilePage() {
               >
                 + Кітап таңдау
               </a>
+
             </div>
 
             <div className="mt-4 space-y-4">
-              {results.map((item) => (
-                <article
-                  key={item.book.id}
-                  className="rounded-3xl bg-white p-6 shadow-sm"
-                >
 
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              {results.map(
+                (item) => (
+                  <article
+                    key={
+                      item.book.id
+                    }
+                    className="rounded-3xl bg-white p-6 shadow-sm"
+                  >
 
-                    <div>
-                      <h3 className="text-lg font-extrabold text-slate-900">
-                        {item.book.title}
-                      </h3>
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
-                      <p className="mt-1 text-sm text-slate-500">
-                        {item.book.author}
-                      </p>
+                      <div>
+
+                        <h3 className="text-lg font-extrabold text-slate-900">
+                          {
+                            item.book
+                              .title
+                          }
+                        </h3>
+
+                        <p className="mt-1 text-sm text-slate-500">
+                          {
+                            item.book
+                              .author
+                          }
+                        </p>
+
+                      </div>
+
+                      <div className="text-left sm:text-right">
+
+                        <p className="text-2xl font-extrabold text-indigo-700">
+                          {
+                            item.totalScore
+                          }
+                          /100
+                        </p>
+
+                        <p className="text-sm text-slate-500">
+                          {item.status ===
+                          "finished"
+                            ? "✅ Оқылып болды"
+                            : "📖 Оқылып жатыр"}
+                        </p>
+
+                      </div>
+
                     </div>
 
-                    <div className="text-left sm:text-right">
-                      <p className="text-2xl font-extrabold text-indigo-700">
-                        {item.totalScore}/100
-                      </p>
+                  </article>
+                )
+              )}
 
-                      <p className="text-sm text-slate-500">
-                        {item.status === "finished"
-                          ? "✅ Оқылып болды"
-                          : "📖 Оқылып жатыр"}
-                      </p>
-                    </div>
-
-                  </div>
-
-                </article>
-              ))}
             </div>
 
           </section>
         )}
 
+        {/* FOOTER BUTTONS */}
         <section className="mt-8 grid gap-4 sm:grid-cols-2">
 
           <a
@@ -643,6 +1163,7 @@ export default function ProfilePage() {
         </section>
 
       </div>
+
     </main>
   );
 }
