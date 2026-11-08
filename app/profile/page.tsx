@@ -39,6 +39,20 @@ type ScoreRow = {
   score: number;
 };
 
+type CreativeRow = {
+  book_id: number;
+  task_type: string;
+  answer: string | null;
+  file_path: string | null;
+  score: number;
+};
+
+type ReviewRow = {
+  book_id: number;
+  review: string;
+  score: number;
+};
+
 type BookResult = {
   book: Book;
   status: string;
@@ -47,6 +61,8 @@ type BookResult = {
   creativeScore: number;
   reviewScore: number;
   totalScore: number;
+  creative: CreativeRow | null;
+  review: ReviewRow | null;
 };
 
 type Classroom = {
@@ -75,10 +91,10 @@ export default function ProfilePage() {
     useState<ScoreRow[]>([]);
 
   const [creative, setCreative] =
-    useState<ScoreRow[]>([]);
+    useState<CreativeRow[]>([]);
 
   const [reviews, setReviews] =
-    useState<ScoreRow[]>([]);
+    useState<ReviewRow[]>([]);
 
   const [classrooms, setClassrooms] =
     useState<Classroom[]>([]);
@@ -158,14 +174,14 @@ export default function ProfilePage() {
       supabase
         .from("creative_submissions")
         .select(
-          "book_id, score"
+          "book_id, task_type, answer, file_path, score"
         )
         .eq("student_id", user.id),
 
       supabase
         .from("reviews")
         .select(
-          "book_id, score"
+          "book_id, review, score"
         )
         .eq("student_id", user.id),
 
@@ -212,9 +228,6 @@ export default function ProfilePage() {
       reviewResult.data ?? []
     );
 
-    /*
-      Оқушы қосылған сыныптарды жүктейміз
-    */
     const membershipRows =
       (memberResult.data ??
         []) as ClassMember[];
@@ -262,11 +275,6 @@ export default function ProfilePage() {
       setClassrooms([]);
     }
 
-    /*
-      Бұрынғы сайт беттері жұмысын
-      жалғастыру үшін localStorage
-      деректерін жаңартамыз.
-    */
     const savedBooks =
       booksResult.data ?? [];
 
@@ -381,19 +389,25 @@ export default function ProfilePage() {
                     readingItem.book_id
                 )?.score ?? 0;
 
-              const creativeScore =
+              const creativeResult =
                 creative.find(
                   (item) =>
                     item.book_id ===
                     readingItem.book_id
-                )?.score ?? 0;
+                ) ?? null;
 
-              const reviewScore =
+              const reviewResult =
                 reviews.find(
                   (item) =>
                     item.book_id ===
                     readingItem.book_id
-                )?.score ?? 0;
+                ) ?? null;
+
+              const creativeScore =
+                creativeResult?.score ?? 0;
+
+              const reviewScore =
+                reviewResult?.score ?? 0;
 
               const totalScore =
                 readingItem.reading_score +
@@ -403,6 +417,7 @@ export default function ProfilePage() {
 
               return {
                 book,
+
                 status:
                   readingItem.status,
 
@@ -413,6 +428,12 @@ export default function ProfilePage() {
                 creativeScore,
                 reviewScore,
                 totalScore,
+
+                creative:
+                  creativeResult,
+
+                review:
+                  reviewResult,
               };
             }
           )
@@ -459,9 +480,55 @@ export default function ProfilePage() {
       ? results[0]
       : null;
 
-  /*
-    ОҚУШЫ СЫНЫП КОДЫН ЕНГІЗЕДІ
-  */
+  function getCreativeFileUrl(
+    filePath: string
+  ) {
+    if (
+      filePath.startsWith("http://") ||
+      filePath.startsWith("https://")
+    ) {
+      return filePath;
+    }
+
+    if (!filePath.includes("/")) {
+      return null;
+    }
+
+    const supabase =
+      createClient();
+
+    const { data } =
+      supabase.storage
+        .from("creative-files")
+        .getPublicUrl(filePath);
+
+    return data.publicUrl || null;
+  }
+
+  function isImageFile(
+    path: string
+  ) {
+    return /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(
+      path
+    );
+  }
+
+  function isVideoFile(
+    path: string
+  ) {
+    return /\.(mp4|webm|ogg|mov|m4v)$/i.test(
+      path
+    );
+  }
+
+  function isAudioFile(
+    path: string
+  ) {
+    return /\.(mp3|wav|ogg|m4a|aac)$/i.test(
+      path
+    );
+  }
+
   async function joinClass(
     event: FormEvent<HTMLFormElement>
   ) {
@@ -698,8 +765,7 @@ export default function ProfilePage() {
 
             {profile.grade && (
               <span className="rounded-full bg-white/15 px-4 py-2">
-                {profile.grade}
-                -сынып
+                {profile.grade}-сынып
               </span>
             )}
 
@@ -718,24 +784,20 @@ export default function ProfilePage() {
         {/* СЫНЫПҚА ҚОСЫЛУ */}
         <section className="mt-6 rounded-3xl bg-white p-7 shadow-sm">
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
 
-            <div>
+            <p className="text-sm font-bold uppercase tracking-widest text-violet-600">
+              SMART OQYRMAN СЫНЫБЫ
+            </p>
 
-              <p className="text-sm font-bold uppercase tracking-widest text-violet-600">
-                SMART OQYRMAN СЫНЫБЫ
-              </p>
+            <h2 className="mt-2 text-2xl font-extrabold text-slate-900">
+              🔑 Сыныпқа қосылу
+            </h2>
 
-              <h2 className="mt-2 text-2xl font-extrabold text-slate-900">
-                🔑 Сыныпқа қосылу
-              </h2>
-
-              <p className="mt-2 max-w-2xl leading-7 text-slate-500">
-                Мұғалім берген сынып кодын енгізіңіз.
-                Осыдан кейін сіздің оқу нәтижеңіз мұғалімнің сыныбында көрінеді.
-              </p>
-
-            </div>
+            <p className="mt-2 max-w-2xl leading-7 text-slate-500">
+              Мұғалім берген сынып кодын енгізіңіз.
+              Осыдан кейін сіздің оқу нәтижеңіз мұғалімнің сыныбында көрінеді.
+            </p>
 
           </div>
 
@@ -770,7 +832,6 @@ export default function ProfilePage() {
 
           </form>
 
-          {/* ҚОСЫЛҒАН СЫНЫПТАР */}
           {classrooms.length > 0 && (
             <div className="mt-6">
 
@@ -800,9 +861,7 @@ export default function ProfilePage() {
                           </p>
 
                           <p className="mt-1 text-lg font-extrabold text-slate-900">
-                            {
-                              classroom.name
-                            }
+                            {classroom.name}
                           </p>
 
                         </div>
@@ -816,9 +875,7 @@ export default function ProfilePage() {
                       <p className="mt-3 text-sm text-slate-500">
                         Код:{" "}
                         <span className="font-bold text-indigo-700">
-                          {
-                            classroom.class_code
-                          }
+                          {classroom.class_code}
                         </span>
                       </p>
 
@@ -833,8 +890,25 @@ export default function ProfilePage() {
 
         </section>
 
+        {/* НӘТИЖЕЛЕР */}
+        <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm">
+
+          <p className="text-sm font-bold uppercase tracking-widest text-indigo-600">
+            SMART OQYRMAN
+          </p>
+
+          <h2 className="mt-2 text-2xl font-extrabold text-slate-900">
+            📊 Менің нәтижелерім
+          </h2>
+
+          <p className="mt-2 text-slate-500">
+            Оқу, тест, шығармашылық тапсырма және пікір бойынша жинаған ұпайларыңыз.
+          </p>
+
+        </section>
+
         {/* STATISTICS */}
-        <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
           <div className="rounded-3xl bg-white p-6 shadow-sm">
 
@@ -899,26 +973,17 @@ export default function ProfilePage() {
                 </p>
 
                 <h2 className="mt-2 text-2xl font-extrabold text-slate-900">
-                  {
-                    currentResult.book
-                      .title
-                  }
+                  {currentResult.book.title}
                 </h2>
 
                 <p className="mt-1 text-slate-500">
-                  {
-                    currentResult.book
-                      .author
-                  }
+                  {currentResult.book.author}
                 </p>
 
               </div>
 
               <span className="rounded-full bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700">
-                {
-                  currentResult.totalScore
-                }{" "}
-                / 100 ұпай
+                {currentResult.totalScore} / 100 ұпай
               </span>
 
             </div>
@@ -926,66 +991,162 @@ export default function ProfilePage() {
             <div className="mt-6 grid gap-3 sm:grid-cols-4">
 
               <div className="rounded-2xl bg-slate-50 p-4">
-
                 <p className="text-sm text-slate-500">
                   📖 Оқу
                 </p>
-
                 <p className="mt-1 text-xl font-extrabold">
-                  {
-                    currentResult.readingScore
-                  }
-                  /20
+                  {currentResult.readingScore}/20
                 </p>
-
               </div>
 
               <div className="rounded-2xl bg-slate-50 p-4">
-
                 <p className="text-sm text-slate-500">
                   📝 Тест
                 </p>
-
                 <p className="mt-1 text-xl font-extrabold">
-                  {
-                    currentResult.testScore
-                  }
-                  /50
+                  {currentResult.testScore}/50
                 </p>
-
               </div>
 
-              <div className="rounded-2xl bg-slate-50 p-4">
-
-                <p className="text-sm text-slate-500">
+              <div className="rounded-2xl bg-violet-50 p-4">
+                <p className="text-sm text-violet-600">
                   🎨 Шығармашылық
                 </p>
-
                 <p className="mt-1 text-xl font-extrabold">
-                  {
-                    currentResult.creativeScore
-                  }
-                  /10
+                  {currentResult.creativeScore}/10
                 </p>
-
               </div>
 
-              <div className="rounded-2xl bg-slate-50 p-4">
-
-                <p className="text-sm text-slate-500">
+              <div className="rounded-2xl bg-amber-50 p-4">
+                <p className="text-sm text-amber-600">
                   💬 Пікір
                 </p>
-
                 <p className="mt-1 text-xl font-extrabold">
-                  {
-                    currentResult.reviewScore
-                  }
-                  /20
+                  {currentResult.reviewScore}/20
                 </p>
-
               </div>
 
             </div>
+
+            {currentResult.creative && (
+              <div className="mt-5 rounded-2xl border border-violet-100 bg-violet-50 p-5">
+
+                <p className="font-extrabold text-violet-700">
+                  🎨 Менің шығармашылық тапсырмам
+                </p>
+
+                <p className="mt-2 text-sm font-bold text-slate-600">
+                  {currentResult.creative.task_type}
+                </p>
+
+                {currentResult.creative.answer && (
+                  <p className="mt-3 whitespace-pre-wrap leading-7 text-slate-700">
+                    {currentResult.creative.answer}
+                  </p>
+                )}
+
+                {currentResult.creative.file_path &&
+                  (() => {
+                    const filePath =
+                      currentResult.creative.file_path;
+
+                    const fileUrl =
+                      getCreativeFileUrl(
+                        filePath
+                      );
+
+                    if (!fileUrl) {
+                      return (
+                        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+
+                          <p className="font-bold">
+                            📎 {filePath}
+                          </p>
+
+                          <p className="mt-1">
+                            Файл атауы сақталған, бірақ Storage сілтемесі табылмады.
+                          </p>
+
+                        </div>
+                      );
+                    }
+
+                    if (
+                      isImageFile(
+                        filePath
+                      )
+                    ) {
+                      return (
+                        <img
+                          src={fileUrl}
+                          alt="Шығармашылық жұмыс"
+                          className="mt-4 max-h-[480px] w-full rounded-2xl bg-white object-contain"
+                        />
+                      );
+                    }
+
+                    if (
+                      isVideoFile(
+                        filePath
+                      )
+                    ) {
+                      return (
+                        <video
+                          src={fileUrl}
+                          controls
+                          playsInline
+                          preload="metadata"
+                          className="mt-4 max-h-[480px] w-full rounded-2xl bg-black"
+                        />
+                      );
+                    }
+
+                    if (
+                      isAudioFile(
+                        filePath
+                      )
+                    ) {
+                      return (
+                        <audio
+                          src={fileUrl}
+                          controls
+                          className="mt-4 w-full"
+                        />
+                      );
+                    }
+
+                    return (
+                      <a
+                        href={fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-4 inline-block rounded-xl bg-violet-600 px-5 py-3 font-bold text-white"
+                      >
+                        📎 Файлды ашу
+                      </a>
+                    );
+                  })()}
+
+              </div>
+            )}
+
+            {currentResult.review && (
+              <div className="mt-4 rounded-2xl border border-amber-100 bg-amber-50 p-5">
+
+                <p className="font-extrabold text-amber-700">
+                  💬 Менің пікірім
+                </p>
+
+                <p className="mt-3 whitespace-pre-wrap leading-7 text-slate-700">
+                  {currentResult.review.review}
+                </p>
+
+                <p className="mt-3 text-sm font-bold text-amber-700">
+                  Пікір ұпайы: {currentResult.reviewScore}/20
+                </p>
+
+              </div>
+            )}
 
             {currentResult.status !==
             "finished" ? (
@@ -1099,17 +1260,11 @@ export default function ProfilePage() {
                       <div>
 
                         <h3 className="text-lg font-extrabold text-slate-900">
-                          {
-                            item.book
-                              .title
-                          }
+                          {item.book.title}
                         </h3>
 
                         <p className="mt-1 text-sm text-slate-500">
-                          {
-                            item.book
-                              .author
-                          }
+                          {item.book.author}
                         </p>
 
                       </div>
@@ -1117,10 +1272,7 @@ export default function ProfilePage() {
                       <div className="text-left sm:text-right">
 
                         <p className="text-2xl font-extrabold text-indigo-700">
-                          {
-                            item.totalScore
-                          }
-                          /100
+                          {item.totalScore}/100
                         </p>
 
                         <p className="text-sm text-slate-500">
@@ -1133,6 +1285,80 @@ export default function ProfilePage() {
                       </div>
 
                     </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+
+                      <div className="rounded-xl bg-slate-50 p-3 text-center">
+                        <p className="text-xs text-slate-500">
+                          Оқу
+                        </p>
+                        <p className="font-extrabold">
+                          {item.readingScore}/20
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-slate-50 p-3 text-center">
+                        <p className="text-xs text-slate-500">
+                          Тест
+                        </p>
+                        <p className="font-extrabold">
+                          {item.testScore}/50
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-violet-50 p-3 text-center">
+                        <p className="text-xs text-violet-600">
+                          Шығармашылық
+                        </p>
+                        <p className="font-extrabold">
+                          {item.creativeScore}/10
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl bg-amber-50 p-3 text-center">
+                        <p className="text-xs text-amber-600">
+                          Пікір
+                        </p>
+                        <p className="font-extrabold">
+                          {item.reviewScore}/20
+                        </p>
+                      </div>
+
+                    </div>
+
+                    {item.creative && (
+                      <div className="mt-4 rounded-2xl bg-violet-50 p-4">
+
+                        <p className="font-extrabold text-violet-700">
+                          🎨 Шығармашылық тапсырма
+                        </p>
+
+                        <p className="mt-1 text-sm font-bold text-slate-600">
+                          {item.creative.task_type}
+                        </p>
+
+                        {item.creative.answer && (
+                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                            {item.creative.answer}
+                          </p>
+                        )}
+
+                      </div>
+                    )}
+
+                    {item.review && (
+                      <div className="mt-3 rounded-2xl bg-amber-50 p-4">
+
+                        <p className="font-extrabold text-amber-700">
+                          💬 Оқушы пікірі
+                        </p>
+
+                        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                          {item.review.review}
+                        </p>
+
+                      </div>
+                    )}
 
                   </article>
                 )
