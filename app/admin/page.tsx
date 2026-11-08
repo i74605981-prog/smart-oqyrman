@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "../../utils/supabase/client";
@@ -285,6 +285,52 @@ export default function AdminPage() {
       creativeScore +
       reviewScore
     );
+  }
+
+  function getCreativeFileUrl(filePath: string) {
+    if (
+      filePath.startsWith("http://") ||
+      filePath.startsWith("https://")
+    ) {
+      return filePath;
+    }
+
+    if (!filePath.includes("/")) {
+      return null;
+    }
+
+    const supabase = createClient();
+
+    const { data } = supabase.storage
+      .from("creative-files")
+      .getPublicUrl(filePath);
+
+    return data.publicUrl || null;
+  }
+
+  function isImageFile(path: string) {
+    return /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(path);
+  }
+
+  function isVideoFile(path: string) {
+    return /\.(mp4|webm|ogg|mov|m4v)$/i.test(path);
+  }
+
+  function isAudioFile(path: string) {
+    return /\.(mp3|wav|ogg|m4a|aac)$/i.test(path);
+  }
+
+  function openStudentResult(studentId: string) {
+    setSelectedStudentId(studentId);
+
+    window.setTimeout(() => {
+      document
+        .getElementById("student-result")
+        ?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+    }, 100);
   }
 
   const summaries =
@@ -791,7 +837,7 @@ export default function AdminPage() {
                           <button
                             type="button"
                             onClick={() =>
-                              setSelectedStudentId(
+                              openStudentResult(
                                 student.id
                               )
                             }
@@ -816,7 +862,10 @@ export default function AdminPage() {
         </section>
 
         {selectedStudent && (
-          <section className="mt-6 rounded-3xl bg-white p-7 shadow-sm">
+          <section
+            id="student-result"
+            className="mt-6 scroll-mt-6 rounded-3xl bg-white p-7 shadow-sm"
+          >
 
             <div className="border-b border-slate-100 pb-5">
 
@@ -945,11 +994,123 @@ export default function AdminPage() {
                             </p>
                           )}
 
-                          {result.creative.file_path && (
-                            <p className="mt-3 text-sm text-slate-500">
-                              📎 {result.creative.file_path}
-                            </p>
-                          )}
+                          {result.creative.file_path &&
+                            (() => {
+                              const filePath =
+                                result.creative.file_path;
+
+                              const fileUrl =
+                                getCreativeFileUrl(
+                                  filePath
+                                );
+
+                              if (!fileUrl) {
+                                return (
+                                  <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                                    <p className="font-bold">
+                                      📎 {filePath}
+                                    </p>
+                                    <p className="mt-1">
+                                      Бұл бұрын сақталған файл атауы.
+                                      Файлдың өзі Storage-қа жүктелмеген.
+                                    </p>
+                                  </div>
+                                );
+                              }
+
+                              if (
+                                isImageFile(
+                                  filePath
+                                )
+                              ) {
+                                return (
+                                  <div className="mt-5">
+                                    <p className="mb-3 font-bold text-slate-700">
+                                      📷 Оқушы жүктеген сурет
+                                    </p>
+
+                                    <img
+                                      src={fileUrl}
+                                      alt="Оқушының шығармашылық жұмысы"
+                                      className="max-h-[520px] w-full rounded-2xl border border-violet-100 bg-white object-contain"
+                                    />
+
+                                    <a
+                                      href={fileUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="mt-3 inline-block font-bold text-violet-700 underline"
+                                    >
+                                      Суретті толық ашу ↗
+                                    </a>
+                                  </div>
+                                );
+                              }
+
+                              if (
+                                isVideoFile(
+                                  filePath
+                                )
+                              ) {
+                                return (
+                                  <div className="mt-5">
+                                    <p className="mb-3 font-bold text-slate-700">
+                                      🎬 Оқушы жүктеген видео
+                                    </p>
+
+                                    <video
+                                      src={fileUrl}
+                                      controls
+                                      playsInline
+                                      preload="metadata"
+                                      className="max-h-[520px] w-full rounded-2xl bg-black"
+                                    >
+                                      Браузер видеоны ойната алмайды.
+                                    </video>
+
+                                    <a
+                                      href={fileUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="mt-3 inline-block font-bold text-violet-700 underline"
+                                    >
+                                      Видеоны бөлек ашу ↗
+                                    </a>
+                                  </div>
+                                );
+                              }
+
+                              if (
+                                isAudioFile(
+                                  filePath
+                                )
+                              ) {
+                                return (
+                                  <div className="mt-5">
+                                    <p className="mb-3 font-bold text-slate-700">
+                                      🎧 Оқушы жүктеген аудио
+                                    </p>
+
+                                    <audio
+                                      src={fileUrl}
+                                      controls
+                                      className="w-full"
+                                    />
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <a
+                                  href={fileUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="mt-5 inline-block rounded-xl bg-violet-600 px-5 py-3 font-bold text-white"
+                                >
+                                  📎 Файлды ашу
+                                </a>
+                              );
+                            })()}
 
                         </div>
                       )}
