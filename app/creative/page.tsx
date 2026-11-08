@@ -1,6 +1,11 @@
 "use client";
 
-import { ChangeEvent, useEffect, useState } from "react";
+import {
+  ChangeEvent,
+  useEffect,
+  useState,
+} from "react";
+
 import { createClient } from "../../utils/supabase/client";
 
 type Book = {
@@ -17,14 +22,35 @@ const taskOptions = [
 ];
 
 export default function CreativePage() {
-  const [book, setBook] = useState<Book | null>(null);
-  const [taskType, setTaskType] = useState("");
-  const [answer, setAnswer] = useState("");
-  const [fileName, setFileName] = useState("");
-  const [fileType, setFileType] = useState("");
-  const [saved, setSaved] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [book, setBook] =
+    useState<Book | null>(null);
+
+  const [taskType, setTaskType] =
+    useState("");
+
+  const [answer, setAnswer] =
+    useState("");
+
+  const [fileName, setFileName] =
+    useState("");
+
+  const [fileType, setFileType] =
+    useState("");
+
+  const [filePath, setFilePath] =
+    useState("");
+
+  const [selectedFile, setSelectedFile] =
+    useState<File | null>(null);
+
+  const [saved, setSaved] =
+    useState(false);
+
+  const [saving, setSaving] =
+    useState(false);
+
+  const [loading, setLoading] =
+    useState(true);
 
   useEffect(() => {
     loadCurrentBook();
@@ -50,34 +76,48 @@ export default function CreativePage() {
 
     if (savedBook) {
       try {
-        currentBook = JSON.parse(savedBook);
+        currentBook =
+          JSON.parse(savedBook);
       } catch {
         currentBook = null;
       }
     }
 
     if (!currentBook) {
-      const { data: progress } = await supabase
-        .from("reading_progress")
-        .select("book_id, updated_at")
-        .eq("student_id", user.id)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data: progress } =
+        await supabase
+          .from("reading_progress")
+          .select("book_id, updated_at")
+          .eq("student_id", user.id)
+          .order("updated_at", {
+            ascending: false,
+          })
+          .limit(1)
+          .maybeSingle();
 
       if (progress) {
-        const { data: selectedBook } = await supabase
+        const {
+          data: selectedBook,
+        } = await supabase
           .from("books")
-          .select("id, title, author")
-          .eq("id", progress.book_id)
+          .select(
+            "id, title, author"
+          )
+          .eq(
+            "id",
+            progress.book_id
+          )
           .single();
 
         if (selectedBook) {
-          currentBook = selectedBook;
+          currentBook =
+            selectedBook;
 
           localStorage.setItem(
             "smartOqyrmanCurrentBook",
-            JSON.stringify(selectedBook)
+            JSON.stringify(
+              selectedBook
+            )
           );
         }
       }
@@ -86,20 +126,54 @@ export default function CreativePage() {
     if (currentBook) {
       setBook(currentBook);
 
-      const { data: existing } = await supabase
-        .from("creative_submissions")
-        .select(
-          "task_type, answer, file_path, score, completed"
-        )
-        .eq("student_id", user.id)
-        .eq("book_id", currentBook.id)
-        .maybeSingle();
+      const { data: existing } =
+        await supabase
+          .from(
+            "creative_submissions"
+          )
+          .select(
+            "task_type, answer, file_path, score, completed"
+          )
+          .eq(
+            "student_id",
+            user.id
+          )
+          .eq(
+            "book_id",
+            currentBook.id
+          )
+          .maybeSingle();
 
       if (existing) {
-        setTaskType(existing.task_type ?? "");
-        setAnswer(existing.answer ?? "");
-        setFileName(existing.file_path ?? "");
-        setSaved(existing.completed === true);
+        setTaskType(
+          existing.task_type ?? ""
+        );
+
+        setAnswer(
+          existing.answer ?? ""
+        );
+
+        setFilePath(
+          existing.file_path ?? ""
+        );
+
+        if (existing.file_path) {
+          const parts =
+            existing.file_path.split(
+              "/"
+            );
+
+          setFileName(
+            parts[
+              parts.length - 1
+            ] ?? ""
+          );
+        }
+
+        setSaved(
+          existing.completed ===
+            true
+        );
       }
     }
 
@@ -109,71 +183,163 @@ export default function CreativePage() {
   function handleFile(
     event: ChangeEvent<HTMLInputElement>
   ) {
-    const file = event.target.files?.[0];
+    const file =
+      event.target.files?.[0];
 
     if (!file) {
+      setSelectedFile(null);
       setFileName("");
       setFileType("");
       return;
     }
 
+    setSelectedFile(file);
     setFileName(file.name);
     setFileType(file.type);
+    setSaved(false);
   }
 
   async function saveCreative() {
     if (!book) {
-      alert("Алдымен кітап таңдаңыз.");
+      alert(
+        "Алдымен кітап таңдаңыз."
+      );
       return;
     }
 
     if (!taskType) {
-      alert("Шығармашылық тапсырма түрін таңдаңыз.");
+      alert(
+        "Шығармашылық тапсырма түрін таңдаңыз."
+      );
       return;
     }
 
     if (!answer.trim()) {
-      alert("Жауабыңызды жазыңыз.");
+      alert(
+        "Жауабыңызды жазыңыз."
+      );
       return;
     }
 
     setSaving(true);
 
-    const supabase = createClient();
+    const supabase =
+      createClient();
 
     const {
       data: { user },
-    } = await supabase.auth.getUser();
+    } =
+      await supabase.auth.getUser();
 
     if (!user) {
       setSaving(false);
-      window.location.href = "/login";
+
+      window.location.href =
+        "/login";
+
       return;
     }
 
-    const now = new Date().toISOString();
+    let uploadedFilePath =
+      filePath;
 
-    const { error } = await supabase
-      .from("creative_submissions")
-      .upsert(
-        {
-          student_id: user.id,
-          book_id: book.id,
-          task_type: taskType,
-          answer: answer.trim(),
-          file_path: fileName || null,
-          score: 10,
-          completed: true,
-          submitted_at: now,
-          updated_at: now,
-        },
-        {
-          onConflict: "student_id,book_id",
-        }
+    /*
+      ФАЙЛДЫ SUPABASE STORAGE-ҚА
+      НАҚТЫ ЖҮКТЕУ
+    */
+    if (selectedFile) {
+      const safeName =
+        selectedFile.name.replace(
+          /[^a-zA-Z0-9._-]/g,
+          "_"
+        );
+
+      const storagePath =
+        `${user.id}/${book.id}/${Date.now()}-${safeName}`;
+
+      const {
+        error: uploadError,
+      } = await supabase.storage
+        .from("creative-files")
+        .upload(
+          storagePath,
+          selectedFile,
+          {
+            cacheControl: "3600",
+            upsert: false,
+            contentType:
+              selectedFile.type ||
+              undefined,
+          }
+        );
+
+      if (uploadError) {
+        console.error(
+          uploadError
+        );
+
+        setSaving(false);
+
+        alert(
+          "Фото немесе видеоны жүктеу кезінде қате шықты."
+        );
+
+        return;
+      }
+
+      uploadedFilePath =
+        storagePath;
+
+      setFilePath(
+        storagePath
       );
+    }
+
+    const now =
+      new Date().toISOString();
+
+    const { error } =
+      await supabase
+        .from(
+          "creative_submissions"
+        )
+        .upsert(
+          {
+            student_id:
+              user.id,
+
+            book_id:
+              book.id,
+
+            task_type:
+              taskType,
+
+            answer:
+              answer.trim(),
+
+            file_path:
+              uploadedFilePath ||
+              null,
+
+            score: 10,
+
+            completed: true,
+
+            submitted_at:
+              now,
+
+            updated_at:
+              now,
+          },
+          {
+            onConflict:
+              "student_id,book_id",
+          }
+        );
 
     if (error) {
       console.error(error);
+
       setSaving(false);
 
       alert(
@@ -183,9 +349,10 @@ export default function CreativePage() {
       return;
     }
 
-    const oldResults = localStorage.getItem(
-      "smartOqyrmanCreativeResults"
-    );
+    const oldResults =
+      localStorage.getItem(
+        "smartOqyrmanCreativeResults"
+      );
 
     let results: Record<
       string,
@@ -195,6 +362,7 @@ export default function CreativePage() {
         answer: string;
         fileName: string;
         fileType: string;
+        filePath: string;
         score: number;
         completed: boolean;
       }
@@ -202,34 +370,55 @@ export default function CreativePage() {
 
     if (oldResults) {
       try {
-        results = JSON.parse(oldResults);
+        results =
+          JSON.parse(
+            oldResults
+          );
       } catch {
         results = {};
       }
     }
 
     results[book.title] = {
-      bookId: book.id,
+      bookId:
+        book.id,
+
       taskType,
-      answer: answer.trim(),
+
+      answer:
+        answer.trim(),
+
       fileName,
+
       fileType,
+
+      filePath:
+        uploadedFilePath,
+
       score: 10,
+
       completed: true,
     };
 
     localStorage.setItem(
       "smartOqyrmanCreativeResults",
-      JSON.stringify(results)
+      JSON.stringify(
+        results
+      )
     );
 
     localStorage.setItem(
       "smartOqyrmanCreativeResult",
-      JSON.stringify(results[book.title])
+      JSON.stringify(
+        results[
+          book.title
+        ]
+      )
     );
 
     setSaved(true);
     setSaving(false);
+    setSelectedFile(null);
   }
 
   if (loading) {
@@ -274,6 +463,7 @@ export default function CreativePage() {
 
   return (
     <main className="min-h-screen bg-slate-50 px-5 py-8">
+
       <div className="mx-auto max-w-3xl">
 
         <header className="rounded-3xl bg-white p-6 shadow-sm">
@@ -281,6 +471,7 @@ export default function CreativePage() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
             <div>
+
               <h1 className="text-3xl font-extrabold text-indigo-700">
                 SMART OQYRMAN
               </h1>
@@ -288,6 +479,7 @@ export default function CreativePage() {
               <p className="mt-1 text-slate-500">
                 🎨 Шығармашылық тапсырма
               </p>
+
             </div>
 
             <a
@@ -329,23 +521,31 @@ export default function CreativePage() {
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
 
-            {taskOptions.map((task) => (
-              <button
-                key={task}
-                type="button"
-                onClick={() => {
-                  setTaskType(task);
-                  setSaved(false);
-                }}
-                className={`rounded-2xl border p-4 text-left font-bold transition ${
-                  taskType === task
-                    ? "border-violet-600 bg-violet-50 text-violet-700"
-                    : "border-slate-200 bg-white text-slate-700"
-                }`}
-              >
-                {task}
-              </button>
-            ))}
+            {taskOptions.map(
+              (task) => (
+                <button
+                  key={task}
+                  type="button"
+                  onClick={() => {
+                    setTaskType(
+                      task
+                    );
+
+                    setSaved(
+                      false
+                    );
+                  }}
+                  className={`rounded-2xl border p-4 text-left font-bold transition ${
+                    taskType ===
+                    task
+                      ? "border-violet-600 bg-violet-50 text-violet-700"
+                      : "border-slate-200 bg-white text-slate-700"
+                  }`}
+                >
+                  {task}
+                </button>
+              )
+            )}
 
           </div>
 
@@ -359,9 +559,16 @@ export default function CreativePage() {
 
           <textarea
             value={answer}
-            onChange={(event) => {
-              setAnswer(event.target.value);
-              setSaved(false);
+            onChange={(
+              event
+            ) => {
+              setAnswer(
+                event.target.value
+              );
+
+              setSaved(
+                false
+              );
             }}
             rows={8}
             placeholder="Ойыңызды осы жерге жазыңыз..."
@@ -377,29 +584,32 @@ export default function CreativePage() {
         <section className="mt-6 rounded-3xl bg-white p-7 shadow-sm">
 
           <h2 className="text-xl font-extrabold text-slate-900">
-            3. Қосымша файл
+            3. Фото, аудио немесе видео
           </h2>
 
           <p className="mt-2 text-sm text-slate-500">
-            Қаласаңыз фото, аудио немесе видео таңдауға болады.
+            Қаласаңыз шығармашылық жұмысыңызға
+            фото, аудио немесе видео тіркей аласыз.
           </p>
 
           <input
             type="file"
             accept="image/*,audio/*,video/*"
-            onChange={handleFile}
+            onChange={
+              handleFile
+            }
             className="mt-5 block w-full rounded-xl border border-slate-200 p-3"
           />
 
           {fileName && (
-            <div className="mt-4 rounded-xl bg-slate-50 p-4">
+            <div className="mt-4 rounded-xl bg-violet-50 p-4">
 
-              <p className="font-bold text-slate-700">
+              <p className="font-bold text-violet-700">
                 📎 {fileName}
               </p>
 
               {fileType && (
-                <p className="mt-1 text-sm text-slate-400">
+                <p className="mt-1 text-sm text-slate-500">
                   {fileType}
                 </p>
               )}
@@ -407,9 +617,9 @@ export default function CreativePage() {
             </div>
           )}
 
-          <p className="mt-3 text-xs text-slate-400">
-            Ескерту: әзірге базаға файлдың атауы ғана
-            сақталады. Нақты файл жүктеуді кейін қосамыз.
+          <p className="mt-3 text-xs text-emerald-600">
+            ✅ Таңдалған файл Supabase Storage-қа
+            жүктеліп сақталады.
           </p>
 
         </section>
@@ -430,7 +640,8 @@ export default function CreativePage() {
             </p>
 
             <p className="mt-2 text-slate-500">
-              Нәтиже Supabase дерекқорына сақталды.
+              Мәтін мен тіркелген файл
+              Supabase-қа сақталды.
             </p>
 
             <a
@@ -444,17 +655,22 @@ export default function CreativePage() {
         ) : (
           <button
             type="button"
-            onClick={saveCreative}
-            disabled={saving}
+            onClick={
+              saveCreative
+            }
+            disabled={
+              saving
+            }
             className="mt-6 w-full rounded-xl bg-violet-600 px-6 py-4 text-lg font-extrabold text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving
-              ? "Сақталуда..."
+              ? "Файл жүктеліп, сақталуда..."
               : "✅ Шығармашылық тапсырманы сақтау"}
           </button>
         )}
 
       </div>
+
     </main>
   );
 }

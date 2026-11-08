@@ -1,1111 +1,840 @@
 "use client";
 
-import {
-  FormEvent,
-  useEffect,
-  useState,
-} from "react";
-
+import { useEffect, useState } from "react";
 import { createClient } from "../../utils/supabase/client";
 
 type Profile = {
   id: string;
-  login: string;
-  full_name: string;
-  school: string;
-  school_id: string | null;
-  region: string | null;
-  district: string | null;
-  role: string;
-};
-
-type StudentRow = {
-  student_id: string;
-  full_name: string;
-  grade: string | null;
+  full_name: string | null;
   school: string | null;
-  books_selected: number;
-  books_finished: number;
-  total_score: number;
+  role: string | null;
 };
 
 type Classroom = {
   id: string;
+  teacher_id: string;
   name: string;
-  grade: number | null;
+  grade: string | null;
   class_code: string;
-  academic_year: string;
-  active: boolean;
-  created_at: string;
-  students: StudentRow[];
+  academic_year: string | null;
+  created_at: string | null;
+};
+
+type StudentRow = {
+  student_id: string;
+  full_name: string | null;
+  grade: string | null;
+  school: string | null;
+  books_selected: number | null;
+  books_finished: number | null;
+  total_score: number | null;
+};
+
+type ReadingRow = {
+  book_id: string;
+  status: string | null;
+  reading_score: number | null;
+  started_at: string | null;
+  finished_at: string | null;
+  updated_at: string | null;
+};
+
+type TestRow = {
+  book_id: string;
+  score: number | null;
+};
+
+type CreativeRow = {
+  book_id: string;
+  task_type: string | null;
+  answer: string | null;
+  file_path: string | null;
+  score: number | null;
+  completed: boolean | null;
+  submitted_at: string | null;
+};
+
+type ReviewRow = {
+  book_id: string;
+  review: string | null;
+  score: number | null;
+  completed: boolean | null;
+  submitted_at: string | null;
+};
+
+type BookRow = {
+  id: string;
+  title: string;
+  author: string | null;
+};
+
+type BookResult = {
+  bookId: string;
+  title: string;
+  author: string | null;
+  readingStatus: string | null;
+  readingScore: number;
+  testScore: number;
+  creativeScore: number;
+  reviewScore: number;
+  totalScore: number;
+  creativeTaskType: string | null;
+  creativeAnswer: string | null;
+  creativeFile: string | null;
+  reviewText: string | null;
 };
 
 export default function TeacherPage() {
-  const [profile, setProfile] =
-    useState<Profile | null>(null);
+  const supabase = createClient();
 
-  const [classrooms, setClassrooms] =
-    useState<Classroom[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const [studentsByClass, setStudentsByClass] = useState<
+    Record<string, StudentRow[]>
+  >({});
 
-  const [className, setClassName] =
-    useState("");
+  const [className, setClassName] = useState("");
+  const [grade, setGrade] = useState("");
 
-  const [grade, setGrade] =
-    useState("");
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
 
-  const [loading, setLoading] =
-    useState(true);
-
-  const [creating, setCreating] =
-    useState(false);
+  const [selectedStudent, setSelectedStudent] =
+    useState<StudentRow | null>(null);
+  const [studentResults, setStudentResults] = useState<BookResult[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   useEffect(() => {
     loadTeacher();
   }, []);
 
   async function loadTeacher() {
-    const supabase =
-      createClient();
+    setLoading(true);
 
     const {
       data: { user },
-    } =
-      await supabase.auth.getUser();
+    } = await supabase.auth.getUser();
 
     if (!user) {
-      window.location.href =
-        "/login";
+      window.location.href = "/login";
       return;
     }
 
-    const {
-      data: teacherProfile,
-      error: profileError,
-    } = await supabase
+    const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select(
-        `
-        id,
-        login,
-        full_name,
-        school,
-        school_id,
-        region,
-        district,
-        role
-        `
-      )
+      .select("id, full_name, school, role")
       .eq("id", user.id)
       .single();
 
-    if (
-      profileError ||
-      !teacherProfile
-    ) {
-      console.error(
-        profileError
-      );
+    if (profileError) {
+      console.error(profileError);
+    }
 
-      alert(
-        "Мұғалім профилін жүктеу кезінде қате шықты."
-      );
+    if (profileData) {
+      setProfile(profileData as Profile);
+    }
 
+    const { data: classroomData, error: classroomError } = await supabase
+      .from("classrooms")
+      .select(
+        "id, teacher_id, name, grade, class_code, academic_year, created_at"
+      )
+      .eq("teacher_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (classroomError) {
+      console.error(classroomError);
       setLoading(false);
       return;
     }
 
-    if (
-      teacherProfile.role !==
-        "teacher" &&
-      teacherProfile.role !==
-        "admin"
-    ) {
-      alert(
-        "Бұл бөлім мұғалімдерге арналған."
-      );
+    const classList = (classroomData || []) as Classroom[];
+    setClassrooms(classList);
 
-      window.location.href =
-        "/profile";
+    const resultMap: Record<string, StudentRow[]> = {};
 
-      return;
-    }
-
-    setProfile(
-      teacherProfile
-    );
-
-    const {
-      data: classRows,
-      error: classesError,
-    } = await supabase
-      .from("classrooms")
-      .select(
-        `
-        id,
-        name,
-        grade,
-        class_code,
-        academic_year,
-        active,
-        created_at
-        `
-      )
-      .eq(
-        "teacher_id",
-        user.id
-      )
-      .order(
-        "created_at",
+    for (const classroom of classList) {
+      const { data, error } = await supabase.rpc(
+        "get_teacher_class_students",
         {
-          ascending: false,
+          p_classroom_id: classroom.id,
         }
       );
 
-    if (classesError) {
-      console.error(
-        classesError
-      );
-
-      setLoading(false);
-      return;
+      if (error) {
+        console.error(error);
+        resultMap[classroom.id] = [];
+      } else {
+        resultMap[classroom.id] = (data || []) as StudentRow[];
+      }
     }
 
-    const rawClasses =
-      classRows ?? [];
-
-    /*
-      Әр сыныптың оқушыларын
-      бөлек жүктейміз.
-    */
-    const classesWithStudents =
-      await Promise.all(
-        rawClasses.map(
-          async (
-            classroom
-          ) => {
-            const {
-              data:
-                studentRows,
-              error:
-                studentsError,
-            } =
-              await supabase.rpc(
-                "get_teacher_class_students",
-                {
-                  p_classroom_id:
-                    classroom.id,
-                }
-              );
-
-            if (
-              studentsError
-            ) {
-              console.error(
-                studentsError
-              );
-
-              return {
-                ...classroom,
-                students: [],
-              };
-            }
-
-            return {
-              ...classroom,
-
-              students:
-                (studentRows ??
-                  []) as StudentRow[],
-            };
-          }
-        )
-      );
-
-    setClassrooms(
-      classesWithStudents
-    );
-
+    setStudentsByClass(resultMap);
     setLoading(false);
   }
 
-  /*
-    БАРЛЫҚ СЫНЫПТАРДАҒЫ
-    БІРЕГЕЙ ОҚУШЫ САНЫ
-  */
-  const totalStudents =
-    new Set(
-      classrooms.flatMap(
-        (classroom) =>
-          classroom.students.map(
-            (student) =>
-              student.student_id
-          )
-      )
-    ).size;
+  async function createClass() {
+    if (!profile) return;
 
-  /*
-    БАРЛЫҚ ОҚЫЛҒАН КІТАП
-  */
-  const totalFinishedBooks =
-    classrooms.reduce(
-      (
-        classSum,
-        classroom
-      ) =>
-        classSum +
-        classroom.students.reduce(
-          (
-            studentSum,
-            student
-          ) =>
-            studentSum +
-            Number(
-              student.books_finished ??
-                0
-            ),
-          0
-        ),
-      0
-    );
-
-  /*
-    ЖАЛПЫ ҰПАЙ
-  */
-  const totalPoints =
-    classrooms.reduce(
-      (
-        classSum,
-        classroom
-      ) =>
-        classSum +
-        classroom.students.reduce(
-          (
-            studentSum,
-            student
-          ) =>
-            studentSum +
-            Number(
-              student.total_score ??
-                0
-            ),
-          0
-        ),
-      0
-    );
-
-  async function createClass(
-    event: FormEvent<HTMLFormElement>
-  ) {
-    event.preventDefault();
-
-    if (!profile) {
-      return;
-    }
-
-    const cleanClassName =
-      className.trim();
-
-    const cleanGrade =
-      grade.trim();
-
-    if (
-      !cleanClassName ||
-      !cleanGrade
-    ) {
-      alert(
-        "Сынып атауы мен сынып деңгейін толтырыңыз."
-      );
-
-      return;
-    }
-
-    if (
-      !profile.school ||
-      !profile.region ||
-      !profile.district
-    ) {
-      alert(
-        "Мектеп, облыс және аудан/қала деректері толық емес."
-      );
-
+    if (!className.trim() || !grade.trim()) {
+      alert("Сынып атауы мен сынып деңгейін толтырыңыз.");
       return;
     }
 
     setCreating(true);
 
-    const supabase =
-      createClient();
+    const randomCode = Math.random()
+      .toString(36)
+      .slice(2, 8)
+      .toUpperCase();
 
-    const {
-      data: { user },
-    } =
-      await supabase.auth.getUser();
+    const classCode = `SO-${randomCode}`;
 
-    if (!user) {
-      setCreating(false);
-
-      window.location.href =
-        "/login";
-
-      return;
-    }
-
-    let schoolId =
-      profile.school_id;
-
-    /*
-      Мектеп бұрын базаға
-      қосылған ба — тексереміз.
-    */
-    if (!schoolId) {
-      const {
-        data:
-          existingSchool,
-        error:
-          schoolSearchError,
-      } = await supabase
-        .from("schools")
-        .select(
-          `
-          id,
-          name,
-          region,
-          district
-          `
-        )
-        .ilike(
-          "name",
-          profile.school.trim()
-        )
-        .ilike(
-          "region",
-          profile.region.trim()
-        )
-        .ilike(
-          "district",
-          profile.district.trim()
-        )
-        .limit(1)
-        .maybeSingle();
-
-      if (
-        schoolSearchError
-      ) {
-        console.error(
-          schoolSearchError
-        );
-      }
-
-      if (
-        existingSchool
-      ) {
-        schoolId =
-          existingSchool.id;
-      } else {
-        /*
-          Мектеп жаңа болса,
-          автоматты түрде қосылады.
-        */
-        const {
-          data:
-            newSchool,
-          error:
-            schoolInsertError,
-        } = await supabase
-          .from("schools")
-          .insert({
-            name:
-              profile.school.trim(),
-
-            region:
-              profile.region.trim(),
-
-            district:
-              profile.district.trim(),
-
-            created_by:
-              user.id,
-          })
-          .select("id")
-          .single();
-
-        if (
-          schoolInsertError ||
-          !newSchool
-        ) {
-          console.error(
-            schoolInsertError
-          );
-
-          setCreating(false);
-
-          alert(
-            "Мектепті базаға қосу кезінде қате шықты."
-          );
-
-          return;
-        }
-
-        schoolId =
-          newSchool.id;
-      }
-
-      const {
-        error:
-          profileUpdateError,
-      } = await supabase
-        .from("profiles")
-        .update({
-          school_id:
-            schoolId,
-        })
-        .eq(
-          "id",
-          user.id
-        );
-
-      if (
-        profileUpdateError
-      ) {
-        console.error(
-          profileUpdateError
-        );
-      }
-    }
-
-    if (!schoolId) {
-      setCreating(false);
-
-      alert(
-        "Мектеп анықталмады."
-      );
-
-      return;
-    }
-
-    /*
-      ЖАҢА СЫНЫП
-    */
-    const {
-      data: newClass,
-      error: classError,
-    } = await supabase
-      .from("classrooms")
-      .insert({
-        school_id:
-          schoolId,
-
-        teacher_id:
-          user.id,
-
-        name:
-          cleanClassName,
-
-        grade:
-          Number(
-            cleanGrade
-          ),
-
-        academic_year:
-          "2026-2027",
-
-        active: true,
-      })
-      .select(
-        `
-        id,
-        name,
-        grade,
-        class_code,
-        academic_year,
-        active,
-        created_at
-        `
-      )
-      .single();
-
-    if (
-      classError ||
-      !newClass
-    ) {
-      console.error(
-        classError
-      );
-
-      setCreating(false);
-
-      alert(
-        "Сынып ашу кезінде қате шықты."
-      );
-
-      return;
-    }
-
-    setClassrooms(
-      (
-        previousClasses
-      ) => [
-        {
-          ...newClass,
-          students: [],
-        },
-        ...previousClasses,
-      ]
-    );
-
-    setProfile({
-      ...profile,
-      school_id:
-        schoolId,
+    const { error } = await supabase.from("classrooms").insert({
+      teacher_id: profile.id,
+      name: className.trim(),
+      grade: grade.trim(),
+      class_code: classCode,
+      academic_year: "2026-2027",
     });
+
+    if (error) {
+      console.error(error);
+      alert("Сынып құру кезінде қате шықты.");
+      setCreating(false);
+      return;
+    }
 
     setClassName("");
     setGrade("");
-
     setCreating(false);
 
-    alert(
-      `Сынып сәтті ашылды!\n\nСынып коды: ${newClass.class_code}`
-    );
+    await loadTeacher();
   }
 
-  async function copyCode(
-    code: string
-  ) {
+  async function openStudentResult(student: StudentRow) {
+    setSelectedStudent(student);
+    setDetailOpen(true);
+    setDetailLoading(true);
+    setStudentResults([]);
+
     try {
-      await navigator.clipboard.writeText(
-        code
+      const [
+        readingResponse,
+        testResponse,
+        creativeResponse,
+        reviewResponse,
+      ] = await Promise.all([
+        supabase
+          .from("reading_progress")
+          .select(
+            "book_id, status, reading_score, started_at, finished_at, updated_at"
+          )
+          .eq("student_id", student.student_id),
+
+        supabase
+          .from("test_results")
+          .select("book_id, score")
+          .eq("student_id", student.student_id),
+
+        supabase
+          .from("creative_submissions")
+          .select(
+            "book_id, task_type, answer, file_path, score, completed, submitted_at"
+          )
+          .eq("student_id", student.student_id),
+
+        supabase
+          .from("reviews")
+          .select("book_id, review, score, completed, submitted_at")
+          .eq("student_id", student.student_id),
+      ]);
+
+      if (readingResponse.error) throw readingResponse.error;
+      if (testResponse.error) throw testResponse.error;
+      if (creativeResponse.error) throw creativeResponse.error;
+      if (reviewResponse.error) throw reviewResponse.error;
+
+      const readings = (readingResponse.data || []) as ReadingRow[];
+      const tests = (testResponse.data || []) as TestRow[];
+      const creatives = (creativeResponse.data || []) as CreativeRow[];
+      const reviews = (reviewResponse.data || []) as ReviewRow[];
+
+      const bookIds = Array.from(
+        new Set([
+          ...readings.map((x) => x.book_id),
+          ...tests.map((x) => x.book_id),
+          ...creatives.map((x) => x.book_id),
+          ...reviews.map((x) => x.book_id),
+        ])
       );
 
-      alert(
-        `Сынып коды көшірілді: ${code}`
-      );
+      let books: BookRow[] = [];
+
+      if (bookIds.length > 0) {
+        const { data: booksData, error: booksError } = await supabase
+          .from("books")
+          .select("id, title, author")
+          .in("id", bookIds);
+
+        if (booksError) throw booksError;
+
+        books = (booksData || []) as BookRow[];
+      }
+
+      const results: BookResult[] = bookIds.map((bookId) => {
+        const book = books.find((x) => x.id === bookId);
+        const reading = readings.find((x) => x.book_id === bookId);
+        const test = tests.find((x) => x.book_id === bookId);
+        const creative = creatives.find((x) => x.book_id === bookId);
+        const review = reviews.find((x) => x.book_id === bookId);
+
+        const readingScore = Number(reading?.reading_score || 0);
+        const testScore = Number(test?.score || 0);
+        const creativeScore = Number(creative?.score || 0);
+        const reviewScore = Number(review?.score || 0);
+
+        return {
+          bookId,
+          title: book?.title || "Кітап атауы",
+          author: book?.author || null,
+          readingStatus: reading?.status || null,
+          readingScore,
+          testScore,
+          creativeScore,
+          reviewScore,
+          totalScore:
+            readingScore + testScore + creativeScore + reviewScore,
+          creativeTaskType: creative?.task_type || null,
+          creativeAnswer: creative?.answer || null,
+          creativeFile: creative?.file_path || null,
+          reviewText: review?.review || null,
+        };
+      });
+
+      setStudentResults(results);
+    } catch (error) {
+      console.error(error);
+      alert("Оқушы нәтижесін жүктеу кезінде қате шықты.");
+    }
+
+    setDetailLoading(false);
+  }
+
+  async function copyCode(code: string) {
+    try {
+      await navigator.clipboard.writeText(code);
+      alert("Сынып коды көшірілді: " + code);
     } catch {
-      alert(
-        `Сынып коды: ${code}`
-      );
+      alert("Сынып коды: " + code);
     }
   }
 
   async function logout() {
-    const supabase =
-      createClient();
-
     await supabase.auth.signOut();
-
-    localStorage.removeItem(
-      "smartOqyrmanCurrentUser"
-    );
-
-    window.location.href =
-      "/login";
+    window.location.href = "/login";
   }
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-slate-50 px-5 py-20">
-
-        <p className="text-center text-lg font-bold text-slate-500">
+      <main className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-xl font-semibold text-purple-800">
           Мұғалім кабинеті жүктелуде...
-        </p>
-
+        </div>
       </main>
     );
   }
 
-  if (!profile) {
-    return null;
-  }
-
   return (
-    <main className="min-h-screen bg-gradient-to-b from-violet-50 via-slate-50 to-indigo-50 px-4 py-8 sm:px-6">
-
-      <div className="mx-auto max-w-7xl">
-
-        {/* HEADER */}
-        <header className="flex flex-col gap-4 rounded-3xl bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-
+    <main className="min-h-screen bg-[#f7f4fb]">
+      <header className="bg-gradient-to-r from-purple-950 via-purple-900 to-purple-800 text-white shadow-lg">
+        <div className="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
           <div>
-
-            <a
-              href="/"
-              className="text-2xl font-extrabold text-indigo-700"
-            >
-              SMART OQYRMAN
-            </a>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Мұғалімнің басқару кабинеті
+            <h1 className="text-3xl font-black">SMART OQYRMAN</h1>
+            <p className="text-purple-200 mt-1">
+              Мұғалім кабинеті
             </p>
-
           </div>
 
           <button
-            type="button"
             onClick={logout}
-            className="rounded-xl bg-slate-100 px-5 py-3 font-bold text-slate-700"
+            className="rounded-xl bg-white/10 border border-white/20 px-5 py-2 font-semibold hover:bg-white/20"
           >
             Шығу
           </button>
+        </div>
+      </header>
 
-        </header>
-
-        {/* TEACHER PROFILE */}
-        <section className="mt-6 overflow-hidden rounded-3xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 p-7 text-white shadow-xl">
-
-          <p className="text-sm font-bold uppercase tracking-widest text-indigo-100">
-            👩‍🏫 МҰҒАЛІМ КАБИНЕТІ
-          </p>
-
-          <h1 className="mt-3 text-3xl font-extrabold">
-            {profile.full_name}
-          </h1>
-
-          <p className="mt-2 text-indigo-100">
-            @{profile.login}
-          </p>
-
-          <div className="mt-6 grid gap-3 lg:grid-cols-3">
-
-            <div className="rounded-2xl bg-white/10 p-4">
-
-              <p className="text-xs font-bold uppercase tracking-wider text-indigo-100">
-                📍 Облыс
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <section className="rounded-3xl bg-white shadow-sm border border-purple-100 p-7 mb-7">
+          <div className="flex flex-wrap items-center justify-between gap-5">
+            <div>
+              <p className="text-sm font-bold text-purple-600">
+                МҰҒАЛІМ
               </p>
 
-              <p className="mt-2 font-bold">
-                {profile.region ||
-                  "Көрсетілмеген"}
-              </p>
+              <h2 className="text-3xl font-black text-slate-900 mt-1">
+                {profile?.full_name || "Мұғалім"}
+              </h2>
 
+              {profile?.school && (
+                <p className="text-slate-600 mt-2">
+                  {profile.school}
+                </p>
+              )}
             </div>
 
-            <div className="rounded-2xl bg-white/10 p-4">
-
-              <p className="text-xs font-bold uppercase tracking-wider text-indigo-100">
-                🏘️ Аудан / қала
+            <div className="rounded-2xl bg-purple-50 px-6 py-4">
+              <p className="text-sm text-purple-700 font-semibold">
+                Сынып саны
               </p>
-
-              <p className="mt-2 font-bold">
-                {profile.district ||
-                  "Көрсетілмеген"}
+              <p className="text-4xl font-black text-purple-950">
+                {classrooms.length}
               </p>
-
             </div>
-
-            <div className="rounded-2xl bg-white/10 p-4">
-
-              <p className="text-xs font-bold uppercase tracking-wider text-indigo-100">
-                🏫 Мектеп
-              </p>
-
-              <p className="mt-2 font-bold">
-                {profile.school ||
-                  "Көрсетілмеген"}
-              </p>
-
-            </div>
-
           </div>
-
         </section>
 
-        {/* GENERAL STATS */}
-        <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="rounded-3xl bg-white shadow-sm border border-purple-100 p-7 mb-8">
+          <h3 className="text-2xl font-black text-slate-900 mb-5">
+            Жаңа сынып ашу
+          </h3>
 
-          <div className="rounded-3xl bg-white p-6 shadow-sm">
-
-            <p className="text-sm text-slate-500">
-              Ашылған сынып
-            </p>
-
-            <p className="mt-2 text-4xl font-extrabold text-indigo-700">
-              {classrooms.length}
-            </p>
-
-          </div>
-
-          <div className="rounded-3xl bg-white p-6 shadow-sm">
-
-            <p className="text-sm text-slate-500">
-              Қосылған оқушы
-            </p>
-
-            <p className="mt-2 text-4xl font-extrabold text-violet-700">
-              {totalStudents}
-            </p>
-
-          </div>
-
-          <div className="rounded-3xl bg-white p-6 shadow-sm">
-
-            <p className="text-sm text-slate-500">
-              Оқылған кітап
-            </p>
-
-            <p className="mt-2 text-4xl font-extrabold text-emerald-600">
-              {totalFinishedBooks}
-            </p>
-
-          </div>
-
-          <div className="rounded-3xl bg-white p-6 shadow-sm">
-
-            <p className="text-sm text-slate-500">
-              Жалпы ұпай
-            </p>
-
-            <p className="mt-2 text-4xl font-extrabold text-amber-500">
-              {totalPoints}
-            </p>
-
-          </div>
-
-        </section>
-
-        {/* CREATE CLASS */}
-        <section className="mt-6 rounded-3xl bg-white p-7 shadow-sm">
-
-          <p className="text-sm font-bold uppercase tracking-widest text-violet-600">
-            ЖАҢА СЫНЫП
-          </p>
-
-          <h2 className="mt-2 text-2xl font-extrabold text-slate-900">
-            ➕ Сынып ашу
-          </h2>
-
-          <p className="mt-2 max-w-3xl leading-7 text-slate-500">
-            Өз мектебіңізде SMART OQYRMAN сыныбын ашыңыз.
-            Жүйе автоматты түрде арнайы сынып кодын береді.
-            Сол код арқылы оқушылар сіздің сыныбыңызға қосылады.
-          </p>
-
-          <form
-            onSubmit={createClass}
-            className="mt-7 grid gap-4 md:grid-cols-[1fr_220px_auto]"
-          >
-
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <input
-              type="text"
               value={className}
-              onChange={(event) =>
-                setClassName(
-                  event.target.value
-                )
-              }
-              placeholder="Мысалы: 7А SMART OQYRMAN"
-              className="rounded-xl border border-slate-200 px-4 py-4 outline-none focus:border-violet-500"
+              onChange={(e) => setClassName(e.target.value)}
+              placeholder='Мысалы: 7 "А" сынып'
+              className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-purple-500"
             />
 
-            <select
+            <input
               value={grade}
-              onChange={(event) =>
-                setGrade(
-                  event.target.value
-                )
-              }
-              className="rounded-xl border border-slate-200 bg-white px-4 py-4 outline-none focus:border-violet-500"
-            >
-
-              <option value="">
-                Сыныпты таңдаңыз
-              </option>
-
-              <option value="5">
-                5-сынып
-              </option>
-
-              <option value="6">
-                6-сынып
-              </option>
-
-              <option value="7">
-                7-сынып
-              </option>
-
-              <option value="8">
-                8-сынып
-              </option>
-
-              <option value="9">
-                9-сынып
-              </option>
-
-            </select>
+              onChange={(e) => setGrade(e.target.value)}
+              placeholder="Сынып деңгейі: 7"
+              className="rounded-xl border border-slate-300 px-4 py-3 outline-none focus:ring-2 focus:ring-purple-500"
+            />
 
             <button
-              type="submit"
+              onClick={createClass}
               disabled={creating}
-              className="rounded-xl bg-violet-600 px-7 py-4 font-extrabold text-white hover:bg-violet-700 disabled:opacity-60"
+              className="rounded-xl bg-purple-800 text-white font-bold px-5 py-3 hover:bg-purple-900 disabled:opacity-50"
             >
-              {creating
-                ? "Ашылуда..."
-                : "Сынып ашу"}
+              {creating ? "Құрылуда..." : "+ Жаңа сынып"}
             </button>
-
-          </form>
-
+          </div>
         </section>
 
-        {/* CLASSROOMS */}
-        <section className="mt-8">
-
-          <p className="text-sm font-bold uppercase tracking-widest text-indigo-600">
-            SMART OQYRMAN
-          </p>
-
-          <h2 className="mt-1 text-2xl font-extrabold text-slate-900">
-            📚 Менің сыныптарым
-          </h2>
+        <section>
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-3xl font-black text-slate-900">
+              Менің сыныптарым
+            </h3>
+          </div>
 
           {classrooms.length === 0 ? (
-            <div className="mt-4 rounded-3xl bg-white p-10 text-center shadow-sm">
-
-              <div className="text-5xl">
-                🏫
-              </div>
-
-              <p className="mt-4 text-xl font-extrabold text-slate-800">
-                Әзірге сынып ашылмаған
+            <div className="rounded-3xl bg-white border border-purple-100 p-10 text-center">
+              <p className="text-slate-600 text-lg">
+                Әзірге сынып ашылмаған.
               </p>
-
-              <p className="mt-2 text-slate-500">
-                Жоғарыдағы бөлімнен алғашқы сыныбыңызды ашыңыз.
-              </p>
-
             </div>
           ) : (
-            <div className="mt-5 space-y-6">
+            <div className="space-y-7">
+              {classrooms.map((classroom) => {
+                const students =
+                  studentsByClass[classroom.id] || [];
 
-              {classrooms.map(
-                (classroom) => (
-                  <article
+                return (
+                  <div
                     key={classroom.id}
-                    className="overflow-hidden rounded-3xl bg-white shadow-sm"
+                    className="rounded-3xl bg-white border border-purple-100 shadow-sm overflow-hidden"
                   >
-
-                    {/* CLASS HEADER */}
-                    <div className="border-b border-slate-100 p-6">
-
-                      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-
+                    <div className="bg-gradient-to-r from-purple-900 to-purple-700 text-white p-6">
+                      <div className="flex flex-wrap items-center justify-between gap-4">
                         <div>
+                          <h4 className="text-2xl font-black">
+                            {classroom.name}
+                          </h4>
 
-                          <p className="text-sm font-bold text-violet-600">
+                          <p className="text-purple-200 mt-1">
                             {classroom.grade
                               ? `${classroom.grade}-сынып`
-                              : "SMART OQYRMAN"}
+                              : ""}
                           </p>
-
-                          <h3 className="mt-1 text-2xl font-extrabold text-slate-900">
-                            {classroom.name}
-                          </h3>
-
-                          <p className="mt-2 text-sm text-slate-500">
-                            👥{" "}
-                            {
-                              classroom
-                                .students
-                                .length
-                            }{" "}
-                            оқушы
-                          </p>
-
                         </div>
 
-                        <div className="rounded-2xl border-2 border-dashed border-indigo-200 bg-indigo-50 px-6 py-4 text-center">
-
-                          <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
-                            Сынып коды
-                          </p>
-
-                          <p className="mt-1 text-2xl font-black tracking-wider text-indigo-700">
-                            {
-                              classroom.class_code
-                            }
-                          </p>
+                        <div className="flex items-center gap-3">
+                          <div className="rounded-xl bg-white/10 px-4 py-3">
+                            <p className="text-xs text-purple-200">
+                              Сынып коды
+                            </p>
+                            <p className="text-xl font-black tracking-wider">
+                              {classroom.class_code}
+                            </p>
+                          </div>
 
                           <button
-                            type="button"
                             onClick={() =>
-                              copyCode(
-                                classroom.class_code
-                              )
+                              copyCode(classroom.class_code)
                             }
-                            className="mt-2 text-sm font-bold text-indigo-600"
+                            className="rounded-xl bg-amber-400 text-purple-950 font-black px-4 py-3 hover:bg-amber-300"
                           >
-                            📋 Кодты көшіру
+                            Көшіру
                           </button>
-
                         </div>
-
                       </div>
-
                     </div>
 
-                    {/* STUDENTS */}
-                    {classroom.students
-                      .length === 0 ? (
-                      <div className="p-8 text-center">
+                    <div className="p-6">
+                      <div className="mb-5">
+                        <p className="text-slate-500">
+                          Оқушы саны:
+                          <span className="ml-2 font-black text-slate-900">
+                            {students.length}
+                          </span>
+                        </p>
+                      </div>
 
-                        <div className="text-4xl">
-                          👥
+                      {students.length === 0 ? (
+                        <div className="rounded-2xl bg-slate-50 p-6 text-center text-slate-500">
+                          Бұл сыныпқа оқушылар әлі қосылмаған.
                         </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[950px]">
+                            <thead>
+                              <tr className="border-b border-slate-200 text-left">
+                                <th className="py-3 pr-4 text-sm text-slate-500">
+                                  Оқушы
+                                </th>
+                                <th className="py-3 px-4 text-sm text-slate-500">
+                                  Сынып
+                                </th>
+                                <th className="py-3 px-4 text-sm text-slate-500">
+                                  Таңдаған кітап
+                                </th>
+                                <th className="py-3 px-4 text-sm text-slate-500">
+                                  Аяқтаған
+                                </th>
+                                <th className="py-3 px-4 text-sm text-slate-500">
+                                  Жалпы ұпай
+                                </th>
+                                <th className="py-3 pl-4 text-sm text-slate-500">
+                                  Нәтиже
+                                </th>
+                              </tr>
+                            </thead>
 
-                        <p className="mt-3 font-extrabold text-slate-800">
-                          Әзірге оқушы қосылмаған
-                        </p>
-
-                        <p className="mt-2 text-sm text-slate-500">
-                          Сынып кодын оқушыларға беріңіз.
-                        </p>
-
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto">
-
-                        <table className="w-full min-w-[800px] text-left">
-
-                          <thead className="bg-slate-50">
-
-                            <tr>
-
-                              <th className="px-6 py-4 text-sm font-bold text-slate-500">
-                                №
-                              </th>
-
-                              <th className="px-6 py-4 text-sm font-bold text-slate-500">
-                                Оқушы
-                              </th>
-
-                              <th className="px-6 py-4 text-sm font-bold text-slate-500">
-                                Сыныбы
-                              </th>
-
-                              <th className="px-6 py-4 text-center text-sm font-bold text-slate-500">
-                                Таңдалған кітап
-                              </th>
-
-                              <th className="px-6 py-4 text-center text-sm font-bold text-slate-500">
-                                Оқылған кітап
-                              </th>
-
-                              <th className="px-6 py-4 text-right text-sm font-bold text-slate-500">
-                                Жалпы ұпай
-                              </th>
-
-                            </tr>
-
-                          </thead>
-
-                          <tbody>
-
-                            {classroom.students.map(
-                              (
-                                student,
-                                index
-                              ) => (
+                            <tbody>
+                              {students.map((student) => (
                                 <tr
-                                  key={
-                                    student.student_id
-                                  }
-                                  className="border-t border-slate-100"
+                                  key={student.student_id}
+                                  className="border-b border-slate-100"
                                 >
-
-                                  <td className="px-6 py-5 text-sm text-slate-400">
-                                    {index +
-                                      1}
-                                  </td>
-
-                                  <td className="px-6 py-5">
-
-                                    <p className="font-extrabold text-slate-900">
-                                      {
-                                        student.full_name
-                                      }
+                                  <td className="py-4 pr-4">
+                                    <p className="font-bold text-slate-900">
+                                      {student.full_name ||
+                                        "Оқушы"}
                                     </p>
 
-                                    <p className="mt-1 text-xs text-slate-400">
-                                      {
-                                        student.school
+                                    {student.school && (
+                                      <p className="text-xs text-slate-500 mt-1">
+                                        {student.school}
+                                      </p>
+                                    )}
+                                  </td>
+
+                                  <td className="py-4 px-4 font-semibold text-slate-700">
+                                    {student.grade || "—"}
+                                  </td>
+
+                                  <td className="py-4 px-4 font-bold text-purple-800">
+                                    {student.books_selected || 0}
+                                  </td>
+
+                                  <td className="py-4 px-4 font-bold text-emerald-700">
+                                    {student.books_finished || 0}
+                                  </td>
+
+                                  <td className="py-4 px-4">
+                                    <span className="inline-flex rounded-xl bg-amber-100 px-4 py-2 font-black text-amber-900">
+                                      {student.total_score || 0}
+                                    </span>
+                                  </td>
+
+                                  <td className="py-4 pl-4">
+                                    <button
+                                      onClick={() =>
+                                        openStudentResult(student)
                                       }
-                                    </p>
-
+                                      className="rounded-xl bg-purple-800 px-5 py-3 text-white font-bold hover:bg-purple-900"
+                                    >
+                                      Нәтижесін қарау
+                                    </button>
                                   </td>
-
-                                  <td className="px-6 py-5 font-bold text-slate-700">
-
-                                    {student.grade
-                                      ? `${student.grade}-сынып`
-                                      : "—"}
-
-                                  </td>
-
-                                  <td className="px-6 py-5 text-center">
-
-                                    <span className="rounded-full bg-indigo-50 px-4 py-2 font-extrabold text-indigo-700">
-
-                                      {Number(
-                                        student.books_selected ??
-                                          0
-                                      )}
-
-                                    </span>
-
-                                  </td>
-
-                                  <td className="px-6 py-5 text-center">
-
-                                    <span className="rounded-full bg-emerald-50 px-4 py-2 font-extrabold text-emerald-700">
-
-                                      {Number(
-                                        student.books_finished ??
-                                          0
-                                      )}
-
-                                    </span>
-
-                                  </td>
-
-                                  <td className="px-6 py-5 text-right">
-
-                                    <span className="text-xl font-extrabold text-amber-500">
-
-                                      {Number(
-                                        student.total_score ??
-                                          0
-                                      )}
-
-                                    </span>
-
-                                    <span className="ml-1 text-xs text-slate-400">
-                                      ұпай
-                                    </span>
-
-                                  </td>
-
                                 </tr>
-                              )
-                            )}
-
-                          </tbody>
-
-                        </table>
-
-                      </div>
-                    )}
-
-                  </article>
-                )
-              )}
-
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
-
         </section>
-
       </div>
 
+      {detailOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-5">
+          <div className="w-full max-w-6xl max-h-[92vh] overflow-y-auto rounded-3xl bg-[#f8f6fb] shadow-2xl">
+            <div className="sticky top-0 z-10 bg-purple-950 text-white px-7 py-5 flex items-center justify-between">
+              <div>
+                <p className="text-purple-200 text-sm font-bold">
+                  ОҚУШЫ НӘТИЖЕСІ
+                </p>
+
+                <h2 className="text-2xl font-black">
+                  {selectedStudent?.full_name || "Оқушы"}
+                </h2>
+              </div>
+
+              <button
+                onClick={() => setDetailOpen(false)}
+                className="rounded-xl bg-white/10 px-4 py-2 font-bold hover:bg-white/20"
+              >
+                ✕ Жабу
+              </button>
+            </div>
+
+            <div className="p-7">
+              {detailLoading ? (
+                <div className="py-16 text-center text-xl font-bold text-purple-800">
+                  Нәтиже жүктелуде...
+                </div>
+              ) : studentResults.length === 0 ? (
+                <div className="rounded-3xl bg-white p-10 text-center border border-purple-100">
+                  <p className="text-xl font-bold text-slate-800">
+                    Бұл оқушы бойынша әзірге нәтиже жоқ.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-7">
+                    <div className="rounded-2xl bg-white border border-purple-100 p-5">
+                      <p className="text-sm text-slate-500">
+                        Оқыған кітап саны
+                      </p>
+                      <p className="text-4xl font-black text-purple-900 mt-1">
+                        {studentResults.length}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-white border border-purple-100 p-5">
+                      <p className="text-sm text-slate-500">
+                        Жиналған жалпы ұпай
+                      </p>
+                      <p className="text-4xl font-black text-amber-600 mt-1">
+                        {studentResults.reduce(
+                          (sum, item) =>
+                            sum + item.totalScore,
+                          0
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-white border border-purple-100 p-5">
+                      <p className="text-sm text-slate-500">
+                        Бағалау жүйесі
+                      </p>
+                      <p className="text-xl font-black text-slate-900 mt-2">
+                        20 + 50 + 10 + 20
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    {studentResults.map((result, index) => (
+                      <article
+                        key={`${result.bookId}-${index}`}
+                        className="rounded-3xl bg-white border border-purple-100 shadow-sm overflow-hidden"
+                      >
+                        <div className="bg-gradient-to-r from-purple-800 to-purple-600 text-white p-6">
+                          <div className="flex flex-wrap items-center justify-between gap-4">
+                            <div>
+                              <p className="text-purple-200 text-sm font-bold">
+                                КІТАП
+                              </p>
+
+                              <h3 className="text-2xl font-black">
+                                {result.title}
+                              </h3>
+
+                              {result.author && (
+                                <p className="text-purple-100 mt-1">
+                                  {result.author}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="rounded-2xl bg-amber-400 text-purple-950 px-5 py-3">
+                              <p className="text-xs font-bold">
+                                ЖАЛПЫ ҰПАЙ
+                              </p>
+                              <p className="text-3xl font-black">
+                                {result.totalScore}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-6">
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-7">
+                            <div className="rounded-2xl bg-purple-50 p-4">
+                              <p className="text-xs text-purple-700 font-bold">
+                                ОҚУ
+                              </p>
+                              <p className="text-3xl font-black text-purple-950">
+                                {result.readingScore}
+                                <span className="text-sm text-slate-400">
+                                  /20
+                                </span>
+                              </p>
+                            </div>
+
+                            <div className="rounded-2xl bg-blue-50 p-4">
+                              <p className="text-xs text-blue-700 font-bold">
+                                ТЕСТ
+                              </p>
+                              <p className="text-3xl font-black text-blue-900">
+                                {result.testScore}
+                                <span className="text-sm text-slate-400">
+                                  /50
+                                </span>
+                              </p>
+                            </div>
+
+                            <div className="rounded-2xl bg-orange-50 p-4">
+                              <p className="text-xs text-orange-700 font-bold">
+                                ШЫҒАРМАШЫЛЫҚ
+                              </p>
+                              <p className="text-3xl font-black text-orange-900">
+                                {result.creativeScore}
+                                <span className="text-sm text-slate-400">
+                                  /10
+                                </span>
+                              </p>
+                            </div>
+
+                            <div className="rounded-2xl bg-emerald-50 p-4">
+                              <p className="text-xs text-emerald-700 font-bold">
+                                ПІКІР
+                              </p>
+                              <p className="text-3xl font-black text-emerald-900">
+                                {result.reviewScore}
+                                <span className="text-sm text-slate-400">
+                                  /20
+                                </span>
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                            <section className="rounded-2xl border border-orange-200 bg-orange-50/50 p-5">
+                              <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 rounded-xl bg-orange-500 text-white flex items-center justify-center text-xl">
+                                  ✍️
+                                </div>
+
+                                <div>
+                                  <h4 className="font-black text-lg text-slate-900">
+                                    Шығармашылық тапсырмасы
+                                  </h4>
+
+                                  {result.creativeTaskType && (
+                                    <p className="text-sm text-orange-700">
+                                      {result.creativeTaskType}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {result.creativeAnswer ? (
+                                <div className="rounded-xl bg-white p-4 text-slate-800 whitespace-pre-wrap leading-7 border border-orange-100">
+                                  {result.creativeAnswer}
+                                </div>
+                              ) : (
+                                <p className="text-slate-500">
+                                  Мәтіндік шығармашылық жауап жоқ.
+                                </p>
+                              )}
+
+                              {result.creativeFile && (
+                                <div className="mt-4 rounded-xl bg-white p-4 border border-orange-100">
+                                  <p className="text-xs font-bold text-orange-700 mb-1">
+                                    ҚОСЫМША ФАЙЛ
+                                  </p>
+
+                                  {result.creativeFile.startsWith(
+                                    "http"
+                                  ) ? (
+                                    <a
+                                      href={result.creativeFile}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="font-bold text-purple-800 underline"
+                                    >
+                                      Файлды ашу
+                                    </a>
+                                  ) : (
+                                    <p className="font-semibold text-slate-800 break-all">
+                                      {result.creativeFile}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                            </section>
+
+                            <section className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5">
+                              <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-xl">
+                                  💬
+                                </div>
+
+                                <div>
+                                  <h4 className="font-black text-lg text-slate-900">
+                                    Оқушының пікірі
+                                  </h4>
+                                  <p className="text-sm text-emerald-700">
+                                    Кітап туралы жеке ойы
+                                  </p>
+                                </div>
+                              </div>
+
+                              {result.reviewText ? (
+                                <div className="rounded-xl bg-white p-4 text-slate-800 whitespace-pre-wrap leading-7 border border-emerald-100">
+                                  {result.reviewText}
+                                </div>
+                              ) : (
+                                <p className="text-slate-500">
+                                  Бұл кітап бойынша пікір жазылмаған.
+                                </p>
+                              )}
+                            </section>
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

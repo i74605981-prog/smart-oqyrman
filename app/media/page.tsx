@@ -21,9 +21,8 @@ export default function MediaPage() {
             </p>
           </div>
 
-          {/* Ардақ пен Айеркем */}
+          {/* Үздік оқырмандар */}
           <div className="mx-auto max-w-3xl overflow-hidden rounded-3xl bg-white shadow-xl">
-
             <img
               src="/media/ardak-aiyerkem.png"
               alt="SMART OQYRMAN жобасының үздік оқырмандары Ардақ пен Айеркем"
@@ -46,6 +45,84 @@ export default function MediaPage() {
               <p className="mx-auto mt-4 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">
                 2025–2026 оқу жылының қорытындысы бойынша оқу белсенділігі
                 мен жоба тапсырмаларын орындауда жоғары нәтиже көрсетті.
+              </p>
+            </div>
+          </div>
+
+          {/* Бірінші сұхбат */}
+          <div className="mx-auto mt-10 max-w-3xl overflow-hidden rounded-3xl bg-white shadow-xl">
+            <div className="px-5 pt-6 text-center sm:px-8 sm:pt-8">
+              <p className="text-sm font-bold uppercase tracking-[0.15em] text-emerald-600">
+                🎤 Сұхбат
+              </p>
+
+              <h2 className="mt-2 text-xl font-extrabold text-slate-900 sm:text-2xl">
+                SMART OQYRMAN жобасы туралы сұхбат
+              </h2>
+
+              <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">
+                SMART OQYRMAN жобасының мақсаты, жүзеге асырылуы,
+                оқушылардың кітап оқуға қызығушылығы және жоба нәтижелері
+                туралы сұхбат.
+              </p>
+            </div>
+
+            <div className="p-4 sm:p-6">
+              <video
+                controls
+                playsInline
+                preload="metadata"
+                poster="/media/suhbat-cover.jpg"
+                className="w-full rounded-2xl bg-black shadow-lg"
+              >
+                <source src="/videos/suhbat.mp4" type="video/mp4" />
+                Сіздің браузеріңіз видеоны қолдамайды.
+              </video>
+            </div>
+          </div>
+
+          {/* І тоқсан қорытындысы */}
+          <div className="mx-auto mt-10 max-w-3xl overflow-hidden rounded-3xl bg-white shadow-xl">
+
+            <div className="bg-gradient-to-r from-emerald-50 to-amber-50 px-5 py-7 text-center sm:px-8">
+              <p className="text-sm font-bold uppercase tracking-[0.15em] text-emerald-600">
+                📚 І тоқсан қорытындысы
+              </p>
+
+              <h2 className="mt-2 text-xl font-extrabold text-slate-900 sm:text-2xl">
+                Сұхбат • Нәтиже • Марапаттау
+              </h2>
+
+              <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
+                SMART OQYRMAN жобасы аясында мектеп кітапханасында
+                І тоқсан қорытындысына арналған кездесу өткізілді.
+                Оқушылармен сұхбат жүргізіліп, оқылған кітаптар,
+                орындалған тапсырмалар мен оқырман белсенділігі талқыланды.
+              </p>
+
+              <p className="mx-auto mt-3 max-w-2xl text-sm font-semibold leading-6 text-slate-700 sm:text-base">
+                І тоқсан қорытындысы бойынша жоғары нәтиже көрсеткен
+                оқушыларға сыныптар бойынша Сары Батақұлы атындағы
+                Шалқар аудандық мәдениет үйіне және музейге баруға
+                арналған жолдамалар табысталды.
+              </p>
+            </div>
+
+            <div className="p-4 sm:p-6">
+              <video
+                controls
+                playsInline
+                preload="metadata"
+                className="w-full rounded-2xl bg-black shadow-lg"
+              >
+                <source src="/videos/1-toksan.mp4" type="video/mp4" />
+                Сіздің браузеріңіз видеоны қолдамайды.
+              </video>
+            </div>
+
+            <div className="px-5 pb-7 text-center sm:px-8">
+              <p className="text-sm font-semibold text-emerald-700 sm:text-base">
+                🏆 Белсенді оқырман – жаңа мүмкіндікке қадам!
               </p>
             </div>
           </div>

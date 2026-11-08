@@ -71,48 +71,28 @@ export default function LoginPage() {
       return;
     }
 
-    /*
-      Тіркелу кезінде Auth metadata-ға сақталған
-      рөлді тексереміз.
-    */
     const metadataRole =
       data.user.user_metadata?.role;
 
     let finalRole =
       profile.role || "student";
 
-    /*
-      Егер мұғалім ретінде тіркелген,
-      бірақ profiles ішінде student болып қалып қойса,
-      автоматты түрде teacher қыламыз.
-    */
     if (
       metadataRole === "teacher" &&
-      profile.role !== "teacher"
+      profile.role !== "teacher" &&
+      profile.role !== "admin"
     ) {
       finalRole = "teacher";
 
-      const {
-        error: roleUpdateError,
-      } = await supabase
+      await supabase
         .from("profiles")
         .update({
           role: "teacher",
           grade: null,
         })
         .eq("id", data.user.id);
-
-      if (roleUpdateError) {
-        console.error(
-          "Мұғалім рөлін сақтау қатесі:",
-          roleUpdateError
-        );
-      }
     }
 
-    /*
-      Admin рөлін profiles кестесінен аламыз.
-    */
     if (profile.role === "admin") {
       finalRole = "admin";
     }
@@ -134,18 +114,11 @@ export default function LoginPage() {
       role: finalRole,
     };
 
-    /*
-      Барлық қолданушыға ортақ дерек
-    */
     localStorage.setItem(
       "smartOqyrmanCurrentUser",
       JSON.stringify(currentUser)
     );
 
-    /*
-      Оқушы болса ғана бұрынғы student
-      деректерін сақтаймыз.
-    */
     if (finalRole === "student") {
       localStorage.setItem(
         "smartOqyrmanStudent",
@@ -157,10 +130,6 @@ export default function LoginPage() {
         profile.id
       );
     } else {
-      /*
-        Мұғалім кірсе бұрынғы оқушы
-        деректерін тазалаймыз.
-      */
       localStorage.removeItem(
         "smartOqyrmanStudent"
       );
@@ -172,39 +141,29 @@ export default function LoginPage() {
 
     setLoading(false);
 
-    /*
-      ӘКІМШІ
-    */
     if (finalRole === "admin") {
       window.location.href = "/admin";
       return;
     }
 
-    /*
-      МҰҒАЛІМ
-    */
     if (finalRole === "teacher") {
       window.location.href = "/teacher";
       return;
     }
 
-    /*
-      ОҚУШЫ
-    */
     window.location.href = "/profile";
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-indigo-50 via-white to-violet-50 px-5 py-10">
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-indigo-50 via-white to-violet-50 px-5 py-10">
 
-      <div className="mx-auto max-w-md">
+      <div className="w-full max-w-md">
 
-        {/* HEADER */}
         <div className="text-center">
 
           <a
             href="/"
-            className="text-3xl font-extrabold text-indigo-700"
+            className="text-3xl font-black text-indigo-700"
           >
             SMART OQYRMAN
           </a>
@@ -215,8 +174,7 @@ export default function LoginPage() {
 
         </div>
 
-        {/* CARD */}
-        <section className="mt-8 rounded-[2rem] bg-white p-7 shadow-xl sm:p-9">
+        <section className="mt-8 rounded-[2rem] border border-indigo-100 bg-white p-8 shadow-xl">
 
           <div className="text-center">
 
@@ -224,58 +182,20 @@ export default function LoginPage() {
               🔐
             </div>
 
-            <h1 className="mt-4 text-3xl font-extrabold text-slate-900">
+            <h1 className="mt-4 text-3xl font-black text-indigo-950">
               Жүйеге кіру
             </h1>
 
-            <p className="mt-2 leading-6 text-slate-500">
-              Оқушы немесе мұғалім ретінде
-              тіркелген логиніңізбен кіріңіз
+            <p className="mt-3 leading-6 text-slate-500">
+              Тіркелген логиніңіз бен
+              құпиясөзіңізді енгізіңіз.
             </p>
 
           </div>
 
-          {/* ROLE INFO */}
-          <div className="mt-6 grid grid-cols-2 gap-3">
-
-            <div className="rounded-2xl bg-indigo-50 p-4 text-center">
-
-              <div className="text-3xl">
-                🎓
-              </div>
-
-              <p className="mt-2 font-extrabold text-indigo-700">
-                Оқушы
-              </p>
-
-              <p className="mt-1 text-xs text-slate-500">
-                Кітап оқу және тапсырма
-              </p>
-
-            </div>
-
-            <div className="rounded-2xl bg-violet-50 p-4 text-center">
-
-              <div className="text-3xl">
-                👩‍🏫
-              </div>
-
-              <p className="mt-2 font-extrabold text-violet-700">
-                Мұғалім
-              </p>
-
-              <p className="mt-1 text-xs text-slate-500">
-                Сынып және нәтиже
-              </p>
-
-            </div>
-
-          </div>
-
-          {/* FORM */}
           <form
             onSubmit={handleLogin}
-            className="mt-7 space-y-5"
+            className="mt-8 space-y-5"
           >
 
             <div>
@@ -290,9 +210,9 @@ export default function LoginPage() {
                 onChange={(event) =>
                   setLogin(event.target.value)
                 }
-                placeholder="Логиніңізді енгізіңіз"
+                placeholder="Логиніңіз"
                 autoComplete="username"
-                className="w-full rounded-xl border border-slate-200 px-4 py-4 outline-none transition focus:border-indigo-500"
+                className="w-full rounded-xl border border-slate-200 px-4 py-4 outline-none focus:border-indigo-500"
               />
 
             </div>
@@ -311,7 +231,7 @@ export default function LoginPage() {
                 }
                 placeholder="Құпиясөз"
                 autoComplete="current-password"
-                className="w-full rounded-xl border border-slate-200 px-4 py-4 outline-none transition focus:border-indigo-500"
+                className="w-full rounded-xl border border-slate-200 px-4 py-4 outline-none focus:border-indigo-500"
               />
 
             </div>
@@ -319,25 +239,34 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-xl bg-indigo-600 px-6 py-4 text-lg font-extrabold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 px-6 py-4 text-lg font-black text-white shadow-md disabled:opacity-60"
             >
               {loading
                 ? "Кіруде..."
-                : "SMART OQYRMAN-ға кіру →"}
+                : "Кабинетке кіру →"}
             </button>
 
           </form>
 
-          {/* REGISTER */}
-          <div className="mt-7 border-t border-slate-100 pt-6 text-center">
+          <div className="mt-6 rounded-2xl bg-indigo-50 p-4 text-center">
+
+            <p className="text-sm leading-6 text-indigo-700">
+              ✨ Жүйе сіздің
+              <b> оқушы немесе мұғалім </b>
+              екеніңізді автоматты түрде анықтайды.
+            </p>
+
+          </div>
+
+          <div className="mt-6 border-t border-slate-100 pt-6 text-center">
 
             <p className="text-sm text-slate-500">
-              Әлі тіркелмедіңіз бе?
+              SMART OQYRMAN-ға алғаш рет келдіңіз бе?
             </p>
 
             <a
               href="/register"
-              className="mt-3 inline-block rounded-xl bg-indigo-50 px-6 py-3 font-bold text-indigo-700"
+              className="mt-3 inline-block font-black text-indigo-600"
             >
               Тіркелу →
             </a>
@@ -345,10 +274,6 @@ export default function LoginPage() {
           </div>
 
         </section>
-
-        <p className="mt-5 text-center text-sm text-slate-400">
-          SMART OQYRMAN · 2026–2027
-        </p>
 
       </div>
 

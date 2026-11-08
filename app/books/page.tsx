@@ -56,15 +56,32 @@ function getAudioForBook(title: string): AudioInfo | null {
     };
   }
 
+  // ҚИЛЫ ЗАМАН
+  if (normalized.includes("қилы заман")) {
+    return {
+      src: "/audio/qily-zaman.mp3",
+      label: "Мұхтар Әуезовтің «Қилы заман» шығармасынан аудио үзінді",
+    };
+  }
+
+  // ҚАҺАРЛЫ КҮНДЕР
+  if (
+    normalized.includes("қаһарлы күндер") ||
+    normalized.includes("кахарлы күндер")
+  ) {
+    return {
+      src: "/audio/qaharly-kunder.mp3",
+      label: "Тахауи Ахтановтың «Қаһарлы күндер» шығармасынан аудио үзінді",
+    };
+  }
+
   return null;
 }
 
 export default function BooksPage() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectingId, setSelectingId] = useState<number | null>(
-    null
-  );
+  const [selectingId, setSelectingId] = useState<number | null>(null);
 
   useEffect(() => {
     loadBooks();
@@ -102,23 +119,18 @@ export default function BooksPage() {
     if (!user) {
       setSelectingId(null);
 
-      alert(
-        "Кітап таңдау үшін алдымен жеке кабинетке кіріңіз."
-      );
+      alert("Кітап таңдау үшін алдымен жеке кабинетке кіріңіз.");
 
       window.location.href = "/login";
       return;
     }
 
-    const { data: existingProgress, error: checkError } =
-      await supabase
-        .from("reading_progress")
-        .select(
-          "id, status, reading_score, started_at, finished_at"
-        )
-        .eq("student_id", user.id)
-        .eq("book_id", book.id)
-        .maybeSingle();
+    const { data: existingProgress, error: checkError } = await supabase
+      .from("reading_progress")
+      .select("id, status, reading_score, started_at, finished_at")
+      .eq("student_id", user.id)
+      .eq("book_id", book.id)
+      .maybeSingle();
 
     if (checkError) {
       console.error(checkError);
@@ -158,9 +170,7 @@ export default function BooksPage() {
       JSON.stringify(currentBook)
     );
 
-    const savedHistory = localStorage.getItem(
-      "smartOqyrmanBookHistory"
-    );
+    const savedHistory = localStorage.getItem("smartOqyrmanBookHistory");
 
     let history: Book[] = [];
 
