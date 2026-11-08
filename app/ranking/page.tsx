@@ -58,43 +58,23 @@ type ReviewRow = {
 };
 
 export default function RankingPage() {
-  const [ranking, setRanking] =
-    useState<RankingRow[]>([]);
-
-  const [currentUserId, setCurrentUserId] =
-    useState("");
-
+  const [ranking, setRanking] = useState<RankingRow[]>([]);
+  const [currentUserId, setCurrentUserId] = useState("");
   const [currentProfile, setCurrentProfile] =
     useState<ProfileRow | null>(null);
 
-  const [students, setStudents] =
-    useState<ProfileRow[]>([]);
+  const [students, setStudents] = useState<ProfileRow[]>([]);
+  const [books, setBooks] = useState<BookRow[]>([]);
+  const [reading, setReading] = useState<ReadingRow[]>([]);
+  const [tests, setTests] = useState<TestRow[]>([]);
+  const [creative, setCreative] = useState<CreativeRow[]>([]);
+  const [reviews, setReviews] = useState<ReviewRow[]>([]);
 
-  const [books, setBooks] =
-    useState<BookRow[]>([]);
-
-  const [reading, setReading] =
-    useState<ReadingRow[]>([]);
-
-  const [tests, setTests] =
-    useState<TestRow[]>([]);
-
-  const [creative, setCreative] =
-    useState<CreativeRow[]>([]);
-
-  const [reviews, setReviews] =
-    useState<ReviewRow[]>([]);
-
-  const [
-    selectedStudentId,
-    setSelectedStudentId,
-  ] = useState("");
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [errorMessage, setErrorMessage] =
+  const [selectedStudentId, setSelectedStudentId] =
     useState("");
+
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     loadRanking();
@@ -130,15 +110,12 @@ export default function RankingPage() {
     }
 
     if (profileData) {
-      setCurrentProfile(
-        profileData as ProfileRow
-      );
+      setCurrentProfile(profileData as ProfileRow);
     }
 
-    const { data, error } =
-      await supabase.rpc(
-        "get_public_ranking"
-      );
+    const { data, error } = await supabase.rpc(
+      "get_public_ranking"
+    );
 
     if (error) {
       console.error(error);
@@ -158,52 +135,23 @@ export default function RankingPage() {
           display_name: string;
           grade: number | null;
           school: string;
-          books_read:
-            | number
-            | string
-            | null;
-          total_points:
-            | number
-            | string
-            | null;
-          perfect_books:
-            | number
-            | string
-            | null;
+          books_read: number | string | null;
+          total_points: number | string | null;
+          perfect_books: number | string | null;
         }) => ({
-          student_id:
-            row.student_id,
-
-          display_name:
-            row.display_name,
-
-          grade:
-            row.grade,
-
-          school:
-            row.school,
-
-          books_read:
-            Number(
-              row.books_read ?? 0
-            ),
-
-          total_points:
-            Number(
-              row.total_points ?? 0
-            ),
-
-          perfect_books:
-            Number(
-              row.perfect_books ?? 0
-            ),
+          student_id: row.student_id,
+          display_name: row.display_name,
+          grade: row.grade,
+          school: row.school,
+          books_read: Number(row.books_read ?? 0),
+          total_points: Number(row.total_points ?? 0),
+          perfect_books: Number(row.perfect_books ?? 0),
         })
       );
 
     setRanking(normalized);
 
-    const role =
-      profileData?.role;
+    const role = profileData?.role;
 
     if (
       role === "admin" ||
@@ -236,32 +184,24 @@ export default function RankingPage() {
 
       supabase
         .from("books")
-        .select(
-          "id, title, author"
-        )
+        .select("id, title, author")
         .eq("active", true)
         .order("id"),
 
       supabase
-        .from(
-          "reading_progress"
-        )
+        .from("reading_progress")
         .select(
           "student_id, book_id, status, reading_score"
         ),
 
       supabase
-        .from(
-          "test_results"
-        )
+        .from("test_results")
         .select(
           "student_id, book_id, score"
         ),
 
       supabase
-        .from(
-          "creative_submissions"
-        )
+        .from("creative_submissions")
         .select(
           "student_id, book_id, task_type, answer, file_path, score"
         ),
@@ -282,108 +222,56 @@ export default function RankingPage() {
       reviewsResult.error
     ) {
       console.error({
-        profiles:
-          profilesResult.error,
-
-        books:
-          booksResult.error,
-
-        reading:
-          readingResult.error,
-
-        tests:
-          testsResult.error,
-
-        creative:
-          creativeResult.error,
-
-        reviews:
-          reviewsResult.error,
+        profiles: profilesResult.error,
+        books: booksResult.error,
+        reading: readingResult.error,
+        tests: testsResult.error,
+        creative: creativeResult.error,
+        reviews: reviewsResult.error,
       });
 
       return;
     }
 
     const studentData =
-      (profilesResult.data ??
-        []) as ProfileRow[];
+      (profilesResult.data ?? []) as ProfileRow[];
 
     setStudents(studentData);
+    setBooks((booksResult.data ?? []) as BookRow[]);
+    setReading((readingResult.data ?? []) as ReadingRow[]);
+    setTests((testsResult.data ?? []) as TestRow[]);
+    setCreative((creativeResult.data ?? []) as CreativeRow[]);
+    setReviews((reviewsResult.data ?? []) as ReviewRow[]);
 
-    setBooks(
-      (booksResult.data ??
-        []) as BookRow[]
-    );
-
-    setReading(
-      (readingResult.data ??
-        []) as ReadingRow[]
-    );
-
-    setTests(
-      (testsResult.data ??
-        []) as TestRow[]
-    );
-
-    setCreative(
-      (creativeResult.data ??
-        []) as CreativeRow[]
-    );
-
-    setReviews(
-      (reviewsResult.data ??
-        []) as ReviewRow[]
-    );
-
-    if (
-      studentData.length > 0
-    ) {
-      setSelectedStudentId(
-        studentData[0].id
-      );
+    if (studentData.length > 0) {
+      setSelectedStudentId(studentData[0].id);
     }
   }
 
-  const currentStudent =
-    useMemo(() => {
-      return ranking.find(
-        (student) =>
-          student.student_id ===
-          currentUserId
-      );
-    }, [
-      ranking,
-      currentUserId,
-    ]);
+  const currentStudent = useMemo(() => {
+    return ranking.find(
+      (student) =>
+        student.student_id === currentUserId
+    );
+  }, [ranking, currentUserId]);
 
-  const currentPosition =
-    useMemo(() => {
-      const index =
-        ranking.findIndex(
-          (student) =>
-            student.student_id ===
-            currentUserId
-        );
+  const currentPosition = useMemo(() => {
+    const index = ranking.findIndex(
+      (student) =>
+        student.student_id === currentUserId
+    );
 
-      return index >= 0
-        ? index + 1
-        : null;
-    }, [
-      ranking,
-      currentUserId,
-    ]);
+    return index >= 0 ? index + 1 : null;
+  }, [ranking, currentUserId]);
 
   const isAdmin =
-    currentProfile?.role ===
-      "admin" ||
-    currentProfile?.role ===
-      "teacher";
+    currentProfile?.role === "admin" ||
+    currentProfile?.role === "teacher";
 
   const selectedStudent =
     students.find(
       (student) =>
-        student.id ===
-        selectedStudentId
+        student.id === selectedStudentId
     ) ?? null;
 
   const selectedStudentResults =
@@ -395,89 +283,58 @@ export default function RankingPage() {
       return reading
         .filter(
           (item) =>
-            item.student_id ===
-            selectedStudent.id
+            item.student_id === selectedStudent.id
         )
-        .map(
-          (readingItem) => {
-            const book =
-              books.find(
-                (item) =>
-                  item.id ===
-                  readingItem.book_id
-              );
+        .map((readingItem) => {
+          const book = books.find(
+            (item) =>
+              item.id === readingItem.book_id
+          );
 
-            if (!book) {
-              return null;
-            }
-
-            const testResult =
-              tests.find(
-                (item) =>
-                  item.student_id ===
-                    selectedStudent.id &&
-                  item.book_id ===
-                    book.id
-              ) ?? null;
-
-            const creativeResult =
-              creative.find(
-                (item) =>
-                  item.student_id ===
-                    selectedStudent.id &&
-                  item.book_id ===
-                    book.id
-              ) ?? null;
-
-            const reviewResult =
-              reviews.find(
-                (item) =>
-                  item.student_id ===
-                    selectedStudent.id &&
-                  item.book_id ===
-                    book.id
-              ) ?? null;
-
-            const total =
-              readingItem.reading_score +
-              (
-                testResult?.score ??
-                0
-              ) +
-              (
-                creativeResult?.score ??
-                0
-              ) +
-              (
-                reviewResult?.score ??
-                0
-              );
-
-            return {
-              book,
-
-              reading:
-                readingItem,
-
-              test:
-                testResult,
-
-              creative:
-                creativeResult,
-
-              review:
-                reviewResult,
-
-              total,
-            };
+          if (!book) {
+            return null;
           }
-        )
+
+          const testResult =
+            tests.find(
+              (item) =>
+                item.student_id === selectedStudent.id &&
+                item.book_id === book.id
+            ) ?? null;
+
+          const creativeResult =
+            creative.find(
+              (item) =>
+                item.student_id === selectedStudent.id &&
+                item.book_id === book.id
+            ) ?? null;
+
+          const reviewResult =
+            reviews.find(
+              (item) =>
+                item.student_id === selectedStudent.id &&
+                item.book_id === book.id
+            ) ?? null;
+
+          const total =
+            readingItem.reading_score +
+            (testResult?.score ?? 0) +
+            (creativeResult?.score ?? 0) +
+            (reviewResult?.score ?? 0);
+
+          return {
+            book,
+            reading: readingItem,
+            test: testResult,
+            creative: creativeResult,
+            review: reviewResult,
+            total,
+          };
+        })
         .filter(
           (
             item
-          ): item is NonNullable<
-            typeof item
-          > =>
+          ): item is NonNullable<typeof item> =>
             item !== null
         );
     }, [
@@ -489,138 +346,91 @@ export default function RankingPage() {
       reviews,
     ]);
 
-  function getMedal(
-    position: number
-  ) {
-    if (position === 1)
-      return "🥇";
+  function openStudentResult(studentId: string) {
+    setSelectedStudentId(studentId);
 
-    if (position === 2)
-      return "🥈";
+    window.setTimeout(() => {
+      document
+        .getElementById("admin-results")
+        ?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+    }, 100);
+  }
 
-    if (position === 3)
-      return "🥉";
+  function getMedal(position: number) {
+    if (position === 1) return "🥇";
+    if (position === 2) return "🥈";
+    if (position === 3) return "🥉";
 
     return `${position}`;
   }
 
-  function getAchievements(
-    student: RankingRow
-  ) {
-    const achievements:
-      string[] = [];
+  function getAchievements(student: RankingRow) {
+    const achievements: string[] = [];
 
-    if (
-      student.books_read >= 1
-    ) {
-      achievements.push(
-        "📖 Алғашқы кітап"
-      );
+    if (student.books_read >= 1) {
+      achievements.push("📖 Алғашқы кітап");
     }
 
-    if (
-      student.books_read >= 3
-    ) {
-      achievements.push(
-        "📚 3 кітап"
-      );
+    if (student.books_read >= 3) {
+      achievements.push("📚 3 кітап");
     }
 
-    if (
-      student.books_read >= 5
-    ) {
-      achievements.push(
-        "🌟 5 кітап"
-      );
+    if (student.books_read >= 5) {
+      achievements.push("🌟 5 кітап");
     }
 
-    if (
-      student.perfect_books >=
-      1
-    ) {
-      achievements.push(
-        "💯 100 ұпай"
-      );
+    if (student.perfect_books >= 1) {
+      achievements.push("💯 100 ұпай");
     }
 
-    if (
-      student.total_points >=
-      300
-    ) {
-      achievements.push(
-        "🏅 300 ұпай"
-      );
+    if (student.total_points >= 300) {
+      achievements.push("🏅 300 ұпай");
     }
 
-    if (
-      student.total_points >=
-      500
-    ) {
-      achievements.push(
-        "🏆 500 ұпай"
-      );
+    if (student.total_points >= 500) {
+      achievements.push("🏆 500 ұпай");
     }
 
     return achievements;
   }
 
-  function getCreativeFileUrl(
-    filePath: string
-  ) {
+  function getCreativeFileUrl(filePath: string) {
     if (
-      filePath.startsWith(
-        "http://"
-      ) ||
-      filePath.startsWith(
-        "https://"
-      )
+      filePath.startsWith("http://") ||
+      filePath.startsWith("https://")
     ) {
       return filePath;
     }
 
-    if (
-      !filePath.includes("/")
-    ) {
+    if (!filePath.includes("/")) {
       return null;
     }
 
-    const supabase =
-      createClient();
+    const supabase = createClient();
 
-    const { data } =
-      supabase.storage
-        .from(
-          "creative-files"
-        )
-        .getPublicUrl(
-          filePath
-        );
+    const { data } = supabase.storage
+      .from("creative-files")
+      .getPublicUrl(filePath);
 
-    return (
-      data.publicUrl ||
-      null
-    );
+    return data.publicUrl || null;
   }
 
-  function isImageFile(
-    path: string
-  ) {
+  function isImageFile(path: string) {
     return /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(
       path
     );
   }
 
-  function isVideoFile(
-    path: string
-  ) {
+  function isVideoFile(path: string) {
     return /\.(mp4|webm|ogg|mov|m4v)$/i.test(
       path
     );
   }
 
-  function isAudioFile(
-    path: string
-  ) {
+  function isAudioFile(path: string) {
     return /\.(mp3|wav|ogg|m4a|aac)$/i.test(
       path
     );
@@ -629,11 +439,9 @@ export default function RankingPage() {
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-50 px-5 py-20">
-
         <p className="text-center text-lg font-bold text-slate-500">
           Рейтинг жүктелуде...
         </p>
-
       </main>
     );
   }
@@ -643,13 +451,11 @@ export default function RankingPage() {
 
       <div className="mx-auto max-w-6xl">
 
-        {/* HEADER */}
         <header className="rounded-3xl bg-white p-6 shadow-sm">
 
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 
             <div>
-
               <a
                 href="/"
                 className="text-3xl font-extrabold text-indigo-700"
@@ -660,15 +466,10 @@ export default function RankingPage() {
               <p className="mt-2 text-slate-500">
                 Кітап оқы. Ойлан. Талда. Дамы.
               </p>
-
             </div>
 
             <a
-              href={
-                isAdmin
-                  ? "/admin"
-                  : "/profile"
-              }
+              href={isAdmin ? "/admin" : "/profile"}
               className="rounded-xl bg-indigo-50 px-5 py-3 text-center font-bold text-indigo-700"
             >
               ← Артқа
@@ -678,7 +479,6 @@ export default function RankingPage() {
 
         </header>
 
-        {/* HERO */}
         <section className="mt-6 rounded-3xl bg-gradient-to-br from-amber-500 to-orange-500 p-8 text-white shadow-lg">
 
           <p className="text-sm font-bold uppercase tracking-widest text-amber-100">
@@ -695,100 +495,74 @@ export default function RankingPage() {
 
         </section>
 
-        {/* ОҚУШЫНЫҢ ӨЗ НӘТИЖЕСІ */}
-        {!isAdmin &&
-          currentStudent && (
-            <section className="mt-6 rounded-3xl bg-indigo-600 p-7 text-white shadow-lg">
+        {!isAdmin && currentStudent && (
+          <section className="mt-6 rounded-3xl bg-indigo-600 p-7 text-white shadow-lg">
 
-              <p className="text-sm font-bold text-indigo-200">
-                МЕНІҢ НӘТИЖЕМ
-              </p>
+            <p className="text-sm font-bold text-indigo-200">
+              МЕНІҢ НӘТИЖЕМ
+            </p>
 
-              <div className="mt-4 grid gap-4 sm:grid-cols-4">
+            <div className="mt-4 grid gap-4 sm:grid-cols-4">
 
-                <div className="rounded-2xl bg-white/10 p-4">
+              <div className="rounded-2xl bg-white/10 p-4">
+                <p className="text-sm text-indigo-100">
+                  Орным
+                </p>
 
-                  <p className="text-sm text-indigo-100">
-                    Орным
-                  </p>
-
-                  <p className="mt-1 text-3xl font-extrabold">
-                    {currentPosition
-                      ? `${currentPosition}-орын`
-                      : "—"}
-                  </p>
-
-                </div>
-
-                <div className="rounded-2xl bg-white/10 p-4">
-
-                  <p className="text-sm text-indigo-100">
-                    Жалпы ұпай
-                  </p>
-
-                  <p className="mt-1 text-3xl font-extrabold">
-                    {
-                      currentStudent.total_points
-                    }
-                  </p>
-
-                </div>
-
-                <div className="rounded-2xl bg-white/10 p-4">
-
-                  <p className="text-sm text-indigo-100">
-                    Оқылған кітап
-                  </p>
-
-                  <p className="mt-1 text-3xl font-extrabold">
-                    {
-                      currentStudent.books_read
-                    }
-                  </p>
-
-                </div>
-
-                <div className="rounded-2xl bg-white/10 p-4">
-
-                  <p className="text-sm text-indigo-100">
-                    100 ұпайлық кітап
-                  </p>
-
-                  <p className="mt-1 text-3xl font-extrabold">
-                    {
-                      currentStudent.perfect_books
-                    }
-                  </p>
-
-                </div>
-
+                <p className="mt-1 text-3xl font-extrabold">
+                  {currentPosition
+                    ? `${currentPosition}-орын`
+                    : "—"}
+                </p>
               </div>
 
-              <div className="mt-5 flex flex-wrap gap-2">
+              <div className="rounded-2xl bg-white/10 p-4">
+                <p className="text-sm text-indigo-100">
+                  Жалпы ұпай
+                </p>
 
-                {getAchievements(
-                  currentStudent
-                ).map(
-                  (
-                    achievement
-                  ) => (
-                    <span
-                      key={
-                        achievement
-                      }
-                      className="rounded-full bg-white/15 px-4 py-2 text-sm font-bold"
-                    >
-                      {
-                        achievement
-                      }
-                    </span>
-                  )
-                )}
-
+                <p className="mt-1 text-3xl font-extrabold">
+                  {currentStudent.total_points}
+                </p>
               </div>
 
-            </section>
-          )}
+              <div className="rounded-2xl bg-white/10 p-4">
+                <p className="text-sm text-indigo-100">
+                  Оқылған кітап
+                </p>
+
+                <p className="mt-1 text-3xl font-extrabold">
+                  {currentStudent.books_read}
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-white/10 p-4">
+                <p className="text-sm text-indigo-100">
+                  100 ұпайлық кітап
+                </p>
+
+                <p className="mt-1 text-3xl font-extrabold">
+                  {currentStudent.perfect_books}
+                </p>
+              </div>
+
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              {getAchievements(currentStudent).map(
+                (achievement) => (
+                  <span
+                    key={achievement}
+                    className="rounded-full bg-white/15 px-4 py-2 text-sm font-bold"
+                  >
+                    {achievement}
+                  </span>
+                )
+              )}
+            </div>
+
+          </section>
+        )}
 
         {errorMessage && (
           <div className="mt-6 rounded-2xl bg-red-50 p-5 font-bold text-red-600">
@@ -796,7 +570,6 @@ export default function RankingPage() {
           </div>
         )}
 
-        {/* ЖАЛПЫ РЕЙТИНГ */}
         {ranking.length > 0 && (
           <section className="mt-6 overflow-hidden rounded-3xl bg-white shadow-sm">
 
@@ -807,20 +580,24 @@ export default function RankingPage() {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Барлығы:{" "}
-                {ranking.length} оқушы
+                Барлығы: {ranking.length} оқушы
               </p>
 
             </div>
 
             <div className="overflow-x-auto">
 
-              <table className="w-full min-w-[750px]">
+              <table
+                className={`w-full ${
+                  isAdmin
+                    ? "min-w-[900px]"
+                    : "min-w-[750px]"
+                }`}
+              >
 
                 <thead className="bg-slate-50 text-left text-sm text-slate-500">
 
                   <tr>
-
                     <th className="px-6 py-4">
                       Орын
                     </th>
@@ -845,6 +622,11 @@ export default function RankingPage() {
                       Жалпы ұпай
                     </th>
 
+                    {isAdmin && (
+                      <th className="px-6 py-4">
+                        Нәтиже
+                      </th>
+                    )}
                   </tr>
 
                 </thead>
@@ -852,19 +634,14 @@ export default function RankingPage() {
                 <tbody>
 
                   {ranking.map(
-                    (
-                      student,
-                      index
-                    ) => {
+                    (student, index) => {
                       const isCurrent =
                         student.student_id ===
                         currentUserId;
 
                       return (
                         <tr
-                          key={
-                            student.student_id
-                          }
+                          key={student.student_id}
                           className={`border-t border-slate-100 ${
                             isCurrent
                               ? "bg-indigo-50"
@@ -873,63 +650,60 @@ export default function RankingPage() {
                         >
 
                           <td className="px-6 py-5 text-xl font-extrabold">
-                            {getMedal(
-                              index +
-                                1
-                            )}
+                            {getMedal(index + 1)}
                           </td>
 
                           <td className="px-6 py-5">
 
                             <p className="font-extrabold text-slate-900">
-                              {
-                                student.display_name
-                              }
+                              {student.display_name}
                             </p>
 
                             <p className="mt-1 text-sm text-slate-400">
-                              {
-                                student.school
-                              }
+                              {student.school}
                             </p>
 
                           </td>
 
                           <td className="px-6 py-5 font-semibold text-slate-700">
-
                             {student.grade
                               ? `${student.grade}-сынып`
                               : "—"}
-
                           </td>
 
                           <td className="px-6 py-5 font-bold text-slate-700">
-
-                            {
-                              student.books_read
-                            }
-
+                            {student.books_read}
                           </td>
 
                           <td className="px-6 py-5 font-bold text-amber-600">
-
-                            {
-                              student.perfect_books
-                            }
-
+                            {student.perfect_books}
                           </td>
 
                           <td className="px-6 py-5">
 
                             <span className="rounded-xl bg-indigo-50 px-4 py-2 text-lg font-extrabold text-indigo-700">
-
-                              {
-                                student.total_points
-                              }
-
+                              {student.total_points}
                             </span>
 
                           </td>
+
+                          {isAdmin && (
+                            <td className="px-6 py-5">
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  openStudentResult(
+                                    student.student_id
+                                  )
+                                }
+                                className="whitespace-nowrap rounded-xl bg-violet-600 px-5 py-3 font-extrabold text-white shadow-sm transition hover:bg-violet-700"
+                              >
+                                📊 Нәтиже
+                              </button>
+
+                            </td>
+                          )}
 
                         </tr>
                       );
@@ -945,9 +719,11 @@ export default function RankingPage() {
           </section>
         )}
 
-        {/* АДМИН НӘТИЖЕЛЕРІ */}
         {isAdmin && (
-          <section className="mt-6 rounded-3xl bg-white p-6 shadow-sm">
+          <section
+            id="admin-results"
+            className="mt-6 scroll-mt-6 rounded-3xl bg-white p-6 shadow-sm"
+          >
 
             <div className="border-b border-slate-100 pb-5">
 
@@ -956,17 +732,16 @@ export default function RankingPage() {
               </p>
 
               <h2 className="mt-2 text-3xl font-extrabold text-slate-900">
-                📊 Оқушылар нәтижелері
+                📊 Оқушы нәтижесі
               </h2>
 
               <p className="mt-2 text-slate-500">
-                Оқушыны таңдап, оқу, тест, шығармашылық тапсырма және пікір нәтижелерін қараңыз.
+                Рейтингтегі «Нәтиже» батырмасын басқанда таңдалған оқушының толық нәтижесі осы жерде көрсетіледі.
               </p>
 
             </div>
 
-            {students.length ===
-            0 ? (
+            {students.length === 0 ? (
               <p className="py-8 text-center text-slate-500">
                 Оқушылар табылмады.
               </p>
@@ -975,45 +750,29 @@ export default function RankingPage() {
                 <div className="mt-6">
 
                   <label className="mb-2 block text-sm font-bold text-slate-600">
-                    Оқушыны таңдаңыз
+                    Оқушы
                   </label>
 
                   <select
-                    value={
-                      selectedStudentId
-                    }
-                    onChange={(
-                      event
-                    ) =>
+                    value={selectedStudentId}
+                    onChange={(event) =>
                       setSelectedStudentId(
-                        event.target
-                          .value
+                        event.target.value
                       )
                     }
                     className="w-full rounded-xl border border-slate-200 bg-white px-5 py-4 font-bold text-slate-800 outline-none focus:border-violet-500"
                   >
 
                     {students.map(
-                      (
-                        student
-                      ) => (
+                      (student) => (
                         <option
-                          key={
-                            student.id
-                          }
-                          value={
-                            student.id
-                          }
+                          key={student.id}
+                          value={student.id}
                         >
-
-                          {
-                            student.full_name
-                          }
-
+                          {student.full_name}
                           {student.grade
                             ? ` — ${student.grade}-сынып`
                             : ""}
-
                         </option>
                       )
                     )}
@@ -1032,13 +791,10 @@ export default function RankingPage() {
                       </p>
 
                       <h3 className="mt-1 text-2xl font-extrabold text-slate-900">
-                        {
-                          selectedStudent.full_name
-                        }
+                        {selectedStudent.full_name}
                       </h3>
 
                       <p className="mt-1 text-sm text-slate-500">
-
                         {selectedStudent.grade
                           ? `${selectedStudent.grade}-сынып`
                           : ""}
@@ -1046,13 +802,11 @@ export default function RankingPage() {
                         {selectedStudent.school
                           ? ` · ${selectedStudent.school}`
                           : ""}
-
                       </p>
 
                     </div>
 
-                    {selectedStudentResults.length ===
-                    0 ? (
+                    {selectedStudentResults.length === 0 ? (
                       <p className="py-8 text-center text-slate-500">
                         Бұл оқушының нәтижесі әзірге жоқ.
                       </p>
@@ -1060,47 +814,26 @@ export default function RankingPage() {
                       <div className="mt-5 space-y-5">
 
                         {selectedStudentResults.map(
-                          (
-                            result
-                          ) => (
+                          (result) => (
                             <article
-                              key={
-                                result
-                                  .book
-                                  .id
-                              }
+                              key={result.book.id}
                               className="rounded-3xl border border-slate-100 p-5 shadow-sm"
                             >
 
                               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 
                                 <div>
-
                                   <h3 className="text-xl font-extrabold text-slate-900">
-                                    {
-                                      result
-                                        .book
-                                        .title
-                                    }
+                                    {result.book.title}
                                   </h3>
 
                                   <p className="mt-1 text-slate-500">
-                                    {
-                                      result
-                                        .book
-                                        .author
-                                    }
+                                    {result.book.author}
                                   </p>
-
                                 </div>
 
                                 <span className="rounded-xl bg-indigo-50 px-4 py-2 text-xl font-extrabold text-indigo-700">
-
-                                  {
-                                    result.total
-                                  }
-                                  /100
-
+                                  {result.total}/100
                                 </span>
 
                               </div>
@@ -1108,74 +841,43 @@ export default function RankingPage() {
                               <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
 
                                 <div className="rounded-xl bg-slate-50 p-4">
-
                                   <p className="text-sm text-slate-500">
                                     📖 Оқу
                                   </p>
 
                                   <p className="mt-1 text-xl font-extrabold">
-                                    {
-                                      result
-                                        .reading
-                                        .reading_score
-                                    }
-                                    /20
+                                    {result.reading.reading_score}/20
                                   </p>
-
                                 </div>
 
                                 <div className="rounded-xl bg-slate-50 p-4">
-
                                   <p className="text-sm text-slate-500">
                                     📝 Тест
                                   </p>
 
                                   <p className="mt-1 text-xl font-extrabold">
-                                    {
-                                      result
-                                        .test
-                                        ?.score ??
-                                      0
-                                    }
-                                    /50
+                                    {result.test?.score ?? 0}/50
                                   </p>
-
                                 </div>
 
                                 <div className="rounded-xl bg-violet-50 p-4">
-
                                   <p className="text-sm text-violet-600">
                                     🎨 Шығармашылық
                                   </p>
 
                                   <p className="mt-1 text-xl font-extrabold">
-                                    {
-                                      result
-                                        .creative
-                                        ?.score ??
-                                      0
-                                    }
-                                    /10
+                                    {result.creative?.score ?? 0}/10
                                   </p>
-
                                 </div>
 
                                 <div className="rounded-xl bg-amber-50 p-4">
-
                                   <p className="text-sm text-amber-600">
                                     💬 Пікір
                                   </p>
 
                                   <p className="mt-1 text-xl font-extrabold">
-                                    {
-                                      result
-                                        .review
-                                        ?.score ??
-                                      0
-                                    }
-                                    /20
+                                    {result.review?.score ?? 0}/20
                                   </p>
-
                                 </div>
 
                               </div>
@@ -1188,80 +890,49 @@ export default function RankingPage() {
                                   </p>
 
                                   <p className="mt-2 text-sm font-bold text-slate-600">
-                                    {
-                                      result
-                                        .creative
-                                        .task_type
-                                    }
+                                    {result.creative.task_type}
                                   </p>
 
                                   {result.creative.answer && (
                                     <p className="mt-3 whitespace-pre-wrap leading-7 text-slate-700">
-                                      {
-                                        result
-                                          .creative
-                                          .answer
-                                      }
+                                      {result.creative.answer}
                                     </p>
                                   )}
 
                                   {result.creative.file_path &&
                                     (() => {
                                       const filePath =
-                                        result
-                                          .creative
-                                          ?.file_path;
+                                        result.creative?.file_path;
 
-                                      if (
-                                        !filePath
-                                      ) {
+                                      if (!filePath) {
                                         return null;
                                       }
 
                                       const fileUrl =
-                                        getCreativeFileUrl(
-                                          filePath
-                                        );
+                                        getCreativeFileUrl(filePath);
 
-                                      if (
-                                        !fileUrl
-                                      ) {
+                                      if (!fileUrl) {
                                         return (
                                           <p className="mt-3 text-sm text-slate-500">
-                                            📎{" "}
-                                            {
-                                              filePath
-                                            }
+                                            📎 {filePath}
                                           </p>
                                         );
                                       }
 
-                                      if (
-                                        isImageFile(
-                                          filePath
-                                        )
-                                      ) {
+                                      if (isImageFile(filePath)) {
                                         return (
                                           <img
-                                            src={
-                                              fileUrl
-                                            }
+                                            src={fileUrl}
                                             alt="Шығармашылық жұмыс"
                                             className="mt-4 max-h-[500px] w-full rounded-2xl bg-white object-contain"
                                           />
                                         );
                                       }
 
-                                      if (
-                                        isVideoFile(
-                                          filePath
-                                        )
-                                      ) {
+                                      if (isVideoFile(filePath)) {
                                         return (
                                           <video
-                                            src={
-                                              fileUrl
-                                            }
+                                            src={fileUrl}
                                             controls
                                             playsInline
                                             preload="metadata"
@@ -1270,16 +941,10 @@ export default function RankingPage() {
                                         );
                                       }
 
-                                      if (
-                                        isAudioFile(
-                                          filePath
-                                        )
-                                      ) {
+                                      if (isAudioFile(filePath)) {
                                         return (
                                           <audio
-                                            src={
-                                              fileUrl
-                                            }
+                                            src={fileUrl}
                                             controls
                                             className="mt-4 w-full"
                                           />
@@ -1288,9 +953,7 @@ export default function RankingPage() {
 
                                       return (
                                         <a
-                                          href={
-                                            fileUrl
-                                          }
+                                          href={fileUrl}
                                           target="_blank"
                                           rel="noreferrer"
                                           className="mt-4 inline-block rounded-xl bg-violet-600 px-5 py-3 font-bold text-white"
@@ -1311,13 +974,7 @@ export default function RankingPage() {
                                   </p>
 
                                   <p className="mt-3 whitespace-pre-wrap leading-7 text-slate-700">
-
-                                    {
-                                      result
-                                        .review
-                                        .review
-                                    }
-
+                                    {result.review.review}
                                   </p>
 
                                 </div>
@@ -1342,11 +999,7 @@ export default function RankingPage() {
         <div className="mt-8 text-center">
 
           <a
-            href={
-              isAdmin
-                ? "/admin"
-                : "/profile"
-            }
+            href={isAdmin ? "/admin" : "/profile"}
             className="inline-block rounded-xl bg-indigo-600 px-7 py-4 font-extrabold text-white"
           >
             ← Артқа қайту
